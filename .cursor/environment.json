@@ -1,0 +1,4 @@
+{
+  "name": "Talvio Terraform IaC",
+  "install": "bash .cursor/install.sh"
+}
