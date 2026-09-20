@@ -40,7 +40,27 @@ output "email_hook_secret_ssm_parameter" {
 }
 
 output "email_hook_secret" {
-  description = "Standard Webhooks secret (v1,whsec_…). MDI-184 should pass this into Supabase hook_send_email_secrets from the same random_bytes resource."
+  description = "Standard Webhooks secret (v1,whsec_…). Same value as supabase_settings.auth.hook_send_email_secrets."
   value       = var.enable_platform ? "v1,whsec_${random_bytes.email_hook_secret[0].base64}" : null
   sensitive   = true
+}
+
+output "supabase_project_ref" {
+  description = "Hosted Supabase project ref (also SSM /$${env}/supabase/project_ref)."
+  value       = var.enable_app_platform ? local.supabase_project_ref : null
+}
+
+output "supabase_url" {
+  description = "https://<ref>.supabase.co (also SSM /$${env}/supabase/url)."
+  value       = var.enable_app_platform ? local.supabase_url : null
+}
+
+output "supabase_oauth_callback_url" {
+  description = "Add this redirect URI on the Google and LinkedIn OAuth apps after apply."
+  value       = var.enable_app_platform ? "${local.supabase_url}/auth/v1/callback" : null
+}
+
+output "vercel_project_id" {
+  description = "Existing Vercel project (not managed as vercel_project)."
+  value       = var.enable_app_platform ? var.vercel_project_id : null
 }

@@ -1,5 +1,5 @@
 # AWS shared platform (MDI-180). Reused modules are unchanged copies from
-# GitLab terraform-iac@3f1e59f. Vercel + Supabase land in MDI-184.
+# GitLab terraform-iac@3f1e59f. Vercel + Supabase are in app.tf (MDI-184).
 # GitHub OIDC roles live in bootstrap/ (MDI-183).
 #
 # modules/ssl, modules/ssm, and modules/dynamodb contain nested provider
@@ -197,5 +197,5 @@ module "ssm" {
 
   environment = var.environment
   region      = var.region
-  parameters  = local.platform_ssm
+  parameters  = merge(local.platform_ssm, local.app_ssm)
 }

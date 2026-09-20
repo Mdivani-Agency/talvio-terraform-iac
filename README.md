@@ -18,7 +18,7 @@ Spec: [Terraform IAC (refactor)](https://app.notion.com/p/3daf87a6db578121833bcc
 1. **Dev (D1).** A dedicated AWS account. The first `bootstrap/` apply still needs an admin principal (IAM user or SSO role). After that, GitHub Actions assumes `talvio-gha-terraform-dev` via OIDC.
 2. **Prod.** The existing prod account that already holds zone `talvio.co` / `Z0405368180IU9H5C98FU` and the verified SES identity. Prod apply is [MDI-182](https://linear.app/mdivani/issue/MDI-182); this ticket only prepares the backend config.
 3. **DNS.** After the dev zone exists (MDI-180), add NS records for `dev.talvio.co` in the live `talvio.co` zone once.
-4. **Vercel / Supabase tokens** are not required until [MDI-184](https://linear.app/mdivani/issue/MDI-184). Providers are declared now so the lockfile stays stable.
+4. **Vercel / Supabase tokens** (`VERCEL_API_TOKEN`, `SUPABASE_ACCESS_TOKEN`) are required for [MDI-184](https://linear.app/mdivani/issue/MDI-184) plan/apply. OAuth client id/secret are **not** GitHub secrets — they are read from existing SSM `/<env>/auth/{google,linkedin}/client_{id,secret}`.
 
 ### Tooling
 
@@ -134,7 +134,7 @@ terraform init -backend=false
 terraform validate
 ```
 
-`main.tf` wires the AWS platform (MDI-180). Vercel / Supabase stay for MDI-184. OIDC roles are created by `bootstrap/`.
+`main.tf` wires the AWS platform (MDI-180). `app.tf` wires Supabase + the existing Vercel project (MDI-184). OIDC roles are created by `bootstrap/`.
 
 ## GitHub Actions and OIDC
 
@@ -155,12 +155,11 @@ Concurrency group `terraform-<env>` with `cancel-in-progress: false` so two appl
 3. Set repository (or Environment) **variables** (role ARNs only — not trust-policy JSON):
    - `DEV_AWS_ROLE_ARN` = bootstrap output `terraform_role_arn` (`talvio-gha-terraform-dev`)
    - `PROD_AWS_ROLE_ARN` = same output from the prod-account bootstrap (`talvio-gha-terraform-prod`)
-4. Environment secrets (used from MDI-184; unused until then):
+4. Repository secrets (MDI-184 plan/apply):
    - `VERCEL_API_TOKEN`
    - `SUPABASE_ACCESS_TOKEN`
-   - any later `TF_VAR_*` (OAuth client secrets, Supabase DB password)
 
-   The Auth `send_email` hook secret is **not** a GitHub secret. Terraform generates it (`random_bytes.email_hook_secret`) and writes SSM `/${env}/email/hook-secret`. MDI-184 should pass that same resource into `hook_send_email_secrets`.
+   The Auth `send_email` hook secret is **not** a GitHub secret. Terraform generates it (`random_bytes.email_hook_secret`), writes SSM `/${env}/email/hook-secret`, and passes the same value into `supabase_settings.auth.hook_send_email_secrets`. Google / LinkedIn client secrets are read from SSM. The Supabase DB password is generated here and stored at `/${env}/supabase/database_password`.
 
 The Actions job needs `id-token: write`. `aws-actions/configure-aws-credentials` assumes the role via GitHub OIDC (`token.actions.githubusercontent.com`).
 
@@ -208,7 +207,7 @@ permissions:
 ## Layout
 
 ```
-versions.tf  backend.tf  providers.tf  main.tf  variables.tf  outputs.tf
+versions.tf  backend.tf  providers.tf  main.tf  app.tf  variables.tf  outputs.tf
 environments/dev.backend.hcl  environments/prod.backend.hcl
 variables/dev.tfvars  variables/prod.tfvars
 variables/templates/{magic_link,recovery,invite,email_change,welcome}.html
@@ -246,4 +245,26 @@ Do not copy `modules/rds`, GitLab `terraform.tfstate.d/`, or `environments/.dev.
 | `email_change` | `token`, `token_new`, `confirmation_url`, `old_email`, `email`, `site_url` | Confirm your new email on Talvio |
 | `welcome` | `name`, `email`, `site_url` | Welcome to Talvio |
 
-No SES SMTP IAM user (D5). Auth hook secret is generated here (`random_bytes.email_hook_secret`) and stored at `/dev/email/hook-secret`. MDI-184 reads that resource (or `terraform output -raw email_hook_secret`) into Supabase `hook_send_email_secrets` — no `TF_VAR_`.
+No SES SMTP IAM user (D5). Auth hook secret is generated here (`random_bytes.email_hook_secret`) and stored at `/dev/email/hook-secret`. The same resource is passed into Supabase `hook_send_email_secrets` — no `TF_VAR_`.
+
+## App platform (MDI-184)
+
+`enable_app_platform = true` on dev creates hosted Supabase `talvio-dev` and attaches the **existing** Vercel project (`prj_VHE5Mf9O1zmaiA1kDQdRHxWdkEiT`). Terraform does **not** manage `vercel_project`, so apply cannot replace it.
+
+| Thing | Value |
+| --- | --- |
+| Supabase project | `talvio-dev`, org slug `vxmuczxicfctjtbdfall`, region `us-west-1` |
+| Auth mail | HTTPS hook `https://api.dev.talvio.co/email/hooks/send-email` (no `smtp_*`) |
+| Auth providers | email OTP + Google + `linkedin_oidc` (client id/secret from SSM `/dev/auth/...`) |
+| Vercel domain | `dev.talvio.co` on git branch `development` |
+| Apex DNS | A `10.0.1.2` (Vercel anycast; zone apex cannot be a CNAME) |
+| Frontend env | `NEXT_PUBLIC_*`, `SUPABASE_SECRET_KEY`, `MEDIA_SERVICE_API_KEY` (generic GW key). Not set: `OPENAI_API_KEY`, `GOOGLE_FONTS_API_KEY` |
+| SSM | `/dev/supabase/{url,project_ref,publishable_key,secret_key,database_password}` |
+
+Vercel `development` env vars must use `sensitive = false`. Preview copies use `sensitive = true` (D3: previews share `talvio-dev`). Production Vercel env is left untouched until MDI-182.
+
+After apply:
+
+1. Add the callback `terraform output -raw supabase_oauth_callback_url` (`https://<ref>.supabase.co/auth/v1/callback`) on the Google and LinkedIn OAuth apps.
+2. If Vercel already has the same env keys from the dashboard, apply may 409 — delete the dashboard copies (or import) and re-run.
+3. Schema / `db-push.yml` stay in `talvio-web-app`. This repo does not write web-app GitHub secrets.
