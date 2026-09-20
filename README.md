@@ -152,9 +152,9 @@ Concurrency group `terraform-<env>` with `cancel-in-progress: false` so two appl
 
 1. Apply `bootstrap/` in the target AWS account (above).
 2. Create GitHub Environments **`dev`** and **`prod`**. On `prod`, add **required reviewers**.
-3. Set repository (or Environment) variables:
-   - `DEV_AWS_ROLE_ARN` = bootstrap output `terraform_role_arn` (dev account)
-   - `PROD_AWS_ROLE_ARN` = same output from the prod-account bootstrap (later)
+3. Set repository (or Environment) **variables** (role ARNs only — not trust-policy JSON):
+   - `DEV_AWS_ROLE_ARN` = bootstrap output `terraform_role_arn` (`talvio-gha-terraform-dev`)
+   - `PROD_AWS_ROLE_ARN` = same output from the prod-account bootstrap (`talvio-gha-terraform-prod`)
 4. Environment secrets (used from MDI-184; unused until then):
    - `VERCEL_API_TOKEN`
    - `SUPABASE_ACCESS_TOKEN`
@@ -166,14 +166,32 @@ The Actions job needs `id-token: write`. `aws-actions/configure-aws-credentials`
 
 Until `DEV_AWS_ROLE_ARN` is set, PR jobs still run fmt/validate and skip the remote plan.
 
+This org uses **immutable OIDC subject claims** (repos created after 15 Jul 2026). A token from Environment `dev` looks like:
+
+```text
+repo:Mdivani-Agency@328309464/talvio-terraform-iac@1367138775:environment:dev
+```
+
+not `repo:Mdivani-Agency/talvio-terraform-iac:environment:dev`. `bootstrap/oidc.tf` trusts **both** classic and immutable `sub` values (`aud` stays `sts.amazonaws.com`). Numeric ids are pinned in `bootstrap/variables.tf`. After changing trust, re-apply `bootstrap/` in each account so Terraform owns the IAM role (a later apply must not drop the immutable claims).
+
+After merging an OIDC trust change:
+
+```bash
+cd bootstrap
+terraform apply -var='environment=dev'    # picks up console edits + deploy-role
+# when standing up prod (MDI-182):
+# terraform apply -var='environment=prod'
+# then set PROD_AWS_ROLE_ARN to terraform_role_arn
+```
+
 ### Service deploy roles
 
 `modules/ci_oidc` is instantiated from `bootstrap/` (not the main root) so the roles exist before the first platform apply.
 
 | Role | Trust | SSM |
 | --- | --- | --- |
-| `talvio-gha-terraform-<env>` | `talvio-terraform-iac` (`pull_request` + `development` + `environment:dev` on dev; `main` + `environment:prod` on prod). Attaches `AdministratorAccess` for now. | — |
-| `talvio-gha-deploy-<env>` | `talvio-media-service` (`development` / `main` + `environment:<env>`) and `talvio-email-service` (`main` + `environment:<env>`). Inline policy covers `sls deploy` (CloudFormation, Lambda, API GW, IAM role CRUD, SSM read, Route53/ACM for `serverless-domain-manager`). | `/${env}/ci/deploy-role-arn` |
+| `talvio-gha-terraform-<env>` | `talvio-terraform-iac` (`pull_request` + `development` + `environment:dev` on dev; `main` + `environment:prod` on prod), classic **and** immutable `sub`. Attaches `AdministratorAccess` for now. | — |
+| `talvio-gha-deploy-<env>` | `talvio-media-service` and `talvio-email-service` (`development` / `main` + `environment:<env>`), classic **and** immutable `sub`. Inline policy covers `sls deploy` (CloudFormation, Lambda, API GW, IAM role CRUD, SSM read, Route53/ACM for `serverless-domain-manager`). | `/${env}/ci/deploy-role-arn` |
 
 Service GitHub Actions (MDI-185 / MDI-186) should:
 

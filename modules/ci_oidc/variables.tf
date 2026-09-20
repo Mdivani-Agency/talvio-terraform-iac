@@ -15,7 +15,7 @@ variable "oidc_provider_arn" {
 
 variable "github_subs" {
   type        = list(string)
-  description = "OIDC subject claims, e.g. repo:Mdivani-Agency/talvio-terraform-iac:environment:dev."
+  description = "OIDC subject claims. Include both classic repo:org/repo:suffix and immutable repo:org@id/repo@id:suffix."
 }
 
 variable "managed_policy_arns" {
