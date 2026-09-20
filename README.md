@@ -158,8 +158,9 @@ Concurrency group `terraform-<env>` with `cancel-in-progress: false` so two appl
 4. Environment secrets (used from MDI-184; unused until then):
    - `VERCEL_API_TOKEN`
    - `SUPABASE_ACCESS_TOKEN`
-   - `TF_VAR_supabase_send_email_hook_secret` (Standard Webhooks `v1,whsec_…`)
    - any later `TF_VAR_*` (OAuth client secrets, Supabase DB password)
+
+   The Auth `send_email` hook secret is **not** a GitHub secret. Terraform generates it (`random_bytes.email_hook_secret`) and writes SSM `/${env}/email/hook-secret`. MDI-184 should pass that same resource into `hook_send_email_secrets`.
 
 The Actions job needs `id-token: write`. `aws-actions/configure-aws-credentials` assumes the role via GitHub OIDC (`token.actions.githubusercontent.com`).
 
@@ -227,4 +228,4 @@ Do not copy `modules/rds`, GitLab `terraform.tfstate.d/`, or `environments/.dev.
 | `email_change` | `token`, `token_new`, `confirmation_url`, `old_email`, `email`, `site_url` | Confirm your new email on Talvio |
 | `welcome` | `name`, `email`, `site_url` | Welcome to Talvio |
 
-No SES SMTP IAM user (D5). Auth hook secret `/dev/email/hook-secret` is MDI-184.
+No SES SMTP IAM user (D5). Auth hook secret is generated here (`random_bytes.email_hook_secret`) and stored at `/dev/email/hook-secret`. MDI-184 reads that resource (or `terraform output -raw email_hook_secret`) into Supabase `hook_send_email_secrets` — no `TF_VAR_`.
