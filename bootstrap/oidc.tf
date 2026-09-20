@@ -5,24 +5,49 @@
 locals {
   github_oidc_url = "https://token.actions.githubusercontent.com"
 
-  terraform_subs = var.environment == "prod" ? [
-    "repo:${var.github_org}/${var.terraform_repo}:ref:refs/heads/main",
-    "repo:${var.github_org}/${var.terraform_repo}:environment:prod",
+  # GitHub Actions OIDC: org repos created after 15 Jul 2026 emit immutable
+  #   repo:<org>@<org_id>/<repo>@<repo_id>:<suffix>
+  # Older tokens (and some job types) still use classic
+  #   repo:<org>/<repo>:<suffix>
+  # Trust both so bootstrap apply cannot wipe a console patch, and so
+  # prod first-apply works without a manual trust edit.
+  oidc_claim_prefixes = {
+    for name in toset([var.terraform_repo, var.media_repo, var.email_repo]) : name => [
+      "${var.github_org}/${name}",
+      "${var.github_org}@${var.github_org_id}/${name}@${var.github_repo_ids[name]}",
+    ]
+  }
+
+  terraform_suffixes = var.environment == "prod" ? [
+    "ref:refs/heads/main",
+    "environment:prod",
     ] : [
-    "repo:${var.github_org}/${var.terraform_repo}:pull_request",
-    "repo:${var.github_org}/${var.terraform_repo}:ref:refs/heads/development",
-    "repo:${var.github_org}/${var.terraform_repo}:environment:dev",
+    "pull_request",
+    "ref:refs/heads/development",
+    "environment:dev",
   ]
 
-  # media-service deploys from `development`; email-service from `main`.
-  # Environment subjects cover GitHub Environment protection on those repos.
-  service_subs = [
-    "repo:${var.github_org}/${var.media_repo}:ref:refs/heads/development",
-    "repo:${var.github_org}/${var.media_repo}:ref:refs/heads/main",
-    "repo:${var.github_org}/${var.media_repo}:environment:${var.environment}",
-    "repo:${var.github_org}/${var.email_repo}:ref:refs/heads/main",
-    "repo:${var.github_org}/${var.email_repo}:environment:${var.environment}",
+  # media-service and email-service both deploy from development (dev) and
+  # main (prod). Environment subjects cover GitHub Environment protection.
+  service_suffixes = [
+    "ref:refs/heads/development",
+    "ref:refs/heads/main",
+    "environment:${var.environment}",
   ]
+
+  terraform_subs = flatten([
+    for suffix in local.terraform_suffixes : [
+      for prefix in local.oidc_claim_prefixes[var.terraform_repo] : "repo:${prefix}:${suffix}"
+    ]
+  ])
+
+  service_subs = flatten([
+    for repo in [var.media_repo, var.email_repo] : [
+      for suffix in local.service_suffixes : [
+        for prefix in local.oidc_claim_prefixes[repo] : "repo:${prefix}:${suffix}"
+      ]
+    ]
+  ])
 
   serverless_deploy_policy = jsonencode({
     Version = "2012-10-17"

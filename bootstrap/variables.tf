@@ -20,6 +20,25 @@ variable "github_org" {
   default     = "Mdivani-Agency"
 }
 
+# Immutable OIDC subjects (repos created after 15 Jul 2026). Pin numeric
+# ids so a later bootstrap apply cannot drop the console trust fix.
+# https://docs.github.com/en/actions/reference/security/oidc#customizing-the-token-claims
+variable "github_org_id" {
+  type        = string
+  description = "Numeric GitHub org id for immutable OIDC sub claims."
+  default     = "328309464"
+}
+
+variable "github_repo_ids" {
+  type        = map(string)
+  description = "Numeric GitHub repo ids keyed by repo name (immutable OIDC sub)."
+  default = {
+    talvio-terraform-iac = "1367138775"
+    talvio-media-service = "1367138193"
+    talvio-email-service = "1367137862"
+  }
+}
+
 variable "terraform_repo" {
   type    = string
   default = "talvio-terraform-iac"
