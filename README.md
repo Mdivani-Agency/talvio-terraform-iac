@@ -9,13 +9,13 @@ This repo is seeded from GitLab [`mdivani-agency/talvio-co/terraform-iac`](https
 | **dev** | Dedicated account (**D1**, locked) | New hosted zone `dev.talvio.co` (NS-delegated from `talvio.co`) | New S3 bucket `talvio-iac-dev-state` |
 | **prod** | Existing prod account | Import live `talvio.co` zone + verified SES (MDI-182) | New S3 bucket `talvio-iac-prod-state` |
 
-Spec: [Terraform IAC (refactor)](https://app.notion.com/p/3daf87a6db578121833bcc1317299f51) · Linear: [MDI-178](https://linear.app/mdivani/issue/MDI-178) / [MDI-179](https://linear.app/mdivani/issue/MDI-179)
+Spec: [Terraform IAC (refactor)](https://app.notion.com/p/3daf87a6db578121833bcc1317299f51) · Linear: [MDI-178](https://linear.app/mdivani/issue/MDI-178) / [MDI-179](https://linear.app/mdivani/issue/MDI-179) / [MDI-183](https://linear.app/mdivani/issue/MDI-183)
 
 ## Prerequisites
 
 ### Accounts and access
 
-1. **Dev (D1).** A dedicated AWS account. Terraform and the AWS CLI must assume a role (or user) in that account that can create S3, Route53, ACM, API Gateway, DynamoDB, SES, SSM, and CloudFront. GitHub OIDC roles land in [MDI-183](https://linear.app/mdivani/issue/MDI-183).
+1. **Dev (D1).** A dedicated AWS account. The first `bootstrap/` apply still needs an admin principal (IAM user or SSO role). After that, GitHub Actions assumes `talvio-gha-terraform-dev` via OIDC.
 2. **Prod.** The existing prod account that already holds zone `talvio.co` / `Z0405368180IU9H5C98FU` and the verified SES identity. Prod apply is [MDI-182](https://linear.app/mdivani/issue/MDI-182); this ticket only prepares the backend config.
 3. **DNS.** After the dev zone exists (MDI-180), add NS records for `dev.talvio.co` in the live `talvio.co` zone once.
 4. **Vercel / Supabase tokens** are not required until [MDI-184](https://linear.app/mdivani/issue/MDI-184). Providers are declared now so the lockfile stays stable.
@@ -38,13 +38,17 @@ The main root uses a **partial** S3 backend (`backend "s3" {}`). The bucket must
 
 ### Option A — `bootstrap/`
 
+Creates the state bucket **and** the GitHub OIDC provider + IAM roles (MDI-183).
+
 ```bash
 cd bootstrap
 terraform init
-terraform apply -var='environment=dev'   # dedicated dev account → talvio-iac-dev-state
+terraform apply -var='environment=dev'   # dedicated dev account → talvio-iac-dev-state + OIDC
 # later, in the existing prod account:
-# terraform apply -var='environment=prod'  # → talvio-iac-prod-state
+# terraform apply -var='environment=prod'  # → talvio-iac-prod-state + OIDC
 ```
+
+Copy `terraform_role_arn` into GitHub (see [CI](#github-actions-and-oidc)). `deploy_role_arn` is also written to SSM `/${env}/ci/deploy-role-arn` for the service repos.
 
 ### Option B — AWS CLI
 
@@ -120,7 +124,57 @@ terraform init -backend=false
 terraform validate
 ```
 
-`main.tf` is intentionally empty in this ticket — modules live under `modules/` and are wired in MDI-180.
+`main.tf` is still unwired for the AWS platform (MDI-180). OIDC roles are created by `bootstrap/`, not this root.
+
+## GitHub Actions and OIDC
+
+Workflow: [`.github/workflows/terraform.yml`](.github/workflows/terraform.yml).
+
+| Event | What runs |
+| --- | --- |
+| Pull request | `fmt -check`, `validate`, `plan` against **dev** (`variables/dev.tfvars`). Plan is a job summary + `tfplan-dev` artifact. |
+| Push to `development`, or `workflow_dispatch` apply/dev | `apply` for **dev**, GitHub Environment `dev` |
+| Push to `main`, or `workflow_dispatch` plan\|apply/prod | `plan` then protected `apply` for **prod**, GitHub Environment `prod` (no-op until `prod.tfvars` is filled in MDI-182) |
+
+Concurrency group `terraform-<env>` with `cancel-in-progress: false` so two applies cannot race.
+
+### One-time GitHub setup
+
+1. Apply `bootstrap/` in the target AWS account (above).
+2. Create GitHub Environments **`dev`** and **`prod`**. On `prod`, add **required reviewers**.
+3. Set repository (or Environment) variables:
+   - `DEV_AWS_ROLE_ARN` = bootstrap output `terraform_role_arn` (dev account)
+   - `PROD_AWS_ROLE_ARN` = same output from the prod-account bootstrap (later)
+4. Environment secrets (used from MDI-184; unused until then):
+   - `VERCEL_API_TOKEN`
+   - `SUPABASE_ACCESS_TOKEN`
+   - `TF_VAR_supabase_send_email_hook_secret` (Standard Webhooks `v1,whsec_…`)
+   - any later `TF_VAR_*` (OAuth client secrets, Supabase DB password)
+
+The Actions job needs `id-token: write`. `aws-actions/configure-aws-credentials` assumes the role via GitHub OIDC (`token.actions.githubusercontent.com`).
+
+Until `DEV_AWS_ROLE_ARN` is set, PR jobs still run fmt/validate and skip the remote plan.
+
+### Service deploy roles
+
+`modules/ci_oidc` is instantiated from `bootstrap/` (not the main root) so the roles exist before the first platform apply.
+
+| Role | Trust | SSM |
+| --- | --- | --- |
+| `talvio-gha-terraform-<env>` | `talvio-terraform-iac` (`pull_request` + `development` + `environment:dev` on dev; `main` + `environment:prod` on prod). Attaches `AdministratorAccess` for now. | — |
+| `talvio-gha-deploy-<env>` | `talvio-media-service` (`development` / `main` + `environment:<env>`) and `talvio-email-service` (`main` + `environment:<env>`). Inline policy covers `sls deploy` (CloudFormation, Lambda, API GW, IAM role CRUD, SSM read, Route53/ACM for `serverless-domain-manager`). | `/${env}/ci/deploy-role-arn` |
+
+Service GitHub Actions (MDI-185 / MDI-186) should:
+
+```yaml
+permissions:
+  id-token: write
+  contents: read
+- uses: aws-actions/configure-aws-credentials@v4
+  with:
+    role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}   # or SSM /${stage}/ci/deploy-role-arn
+    aws-region: us-west-1
+```
 
 ## Layout
 
@@ -130,11 +184,13 @@ environments/dev.backend.hcl  environments/prod.backend.hcl
 variables/dev.tfvars  variables/prod.tfvars
 variables/templates/magic_link.html
 modules/ssl  modules/api_gateway  modules/s3  modules/dynamodb  modules/ses  modules/ssm
-bootstrap/                    # one-off state bucket
+modules/ci_oidc               # GitHub OIDC IAM role + optional SSM
+bootstrap/                    # state bucket + GitHub OIDC provider + CI roles
 scripts/plan.sh  scripts/deploy.sh
+.github/workflows/terraform.yml
 ```
 
-New modules (`dns`, `supabase`, `vercel`, `ci_oidc`) arrive in later tickets. Do not copy `modules/rds`, GitLab `terraform.tfstate.d/`, or `environments/.dev.tf` / `.prod.tf`.
+New modules (`dns`, `supabase`, `vercel`) arrive in later tickets. Do not copy `modules/rds`, GitLab `terraform.tfstate.d/`, or `environments/.dev.tf` / `.prod.tf`.
 
 ## Naming (dev)
 
@@ -147,3 +203,5 @@ New modules (`dns`, `supabase`, `vercel`, `ci_oidc`) arrive in later tickets. Do
 | SES from | `no-reply@dev.talvio.co` |
 | State | `talvio-iac-dev-state`, workspace `dev` |
 | Region | `us-west-1` |
+| TF CI role | `talvio-gha-terraform-dev` |
+| Service deploy role | `talvio-gha-deploy-dev` → SSM `/dev/ci/deploy-role-arn` |

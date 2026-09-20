@@ -1,0 +1,238 @@
+name: Terraform
+
+on:
+  pull_request:
+  push:
+    branches: [development, main]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Target environment
+        type: choice
+        options: [dev, prod]
+        default: dev
+      action:
+        description: Plan only or apply
+        type: choice
+        options: [plan, apply]
+        default: plan
+
+# One apply at a time per environment (S3 use_lockfile is the backstop).
+concurrency:
+  group: terraform-${{ github.event.inputs.environment || (github.ref == 'refs/heads/main' && 'prod' || 'dev') }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  id-token: write
+  pull-requests: write
+
+env:
+  TF_IN_AUTOMATION: "true"
+  TF_INPUT: "false"
+  AWS_REGION: us-west-1
+
+jobs:
+  fmt-validate:
+    name: fmt + validate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.11.4
+          terraform_wrapper: false
+      - name: terraform fmt
+        run: terraform fmt -check -recursive
+      - name: terraform init (no backend)
+        run: terraform init -backend=false
+      - name: terraform validate
+        run: terraform validate
+
+  plan-dev:
+    name: plan (dev)
+    needs: fmt-validate
+    if: |
+      github.event_name == 'pull_request' ||
+      (github.event_name == 'workflow_dispatch' && inputs.environment == 'dev' && inputs.action == 'plan')
+    runs-on: ubuntu-latest
+    env:
+      ROLE_ARN: ${{ vars.DEV_AWS_ROLE_ARN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.11.4
+          terraform_wrapper: false
+      - name: Configure AWS (OIDC)
+        if: env.ROLE_ARN != ''
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ env.ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+      - name: Skip plan (no DEV_AWS_ROLE_ARN)
+        if: env.ROLE_ARN == ''
+        run: |
+          echo "DEV_AWS_ROLE_ARN is not set. Apply bootstrap/ and add the terraform_role_arn output as a repo variable." >> "$GITHUB_STEP_SUMMARY"
+          echo "Skipping remote plan."
+      - name: Plan
+        if: env.ROLE_ARN != ''
+        env:
+          VERCEL_API_TOKEN: ${{ secrets.VERCEL_API_TOKEN }}
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          TF_VAR_supabase_send_email_hook_secret: ${{ secrets.TF_VAR_supabase_send_email_hook_secret }}
+        run: |
+          set -euo pipefail
+          terraform init -backend-config=environments/dev.backend.hcl
+          terraform workspace select dev 2>/dev/null || terraform workspace new dev
+          terraform plan -var-file=variables/dev.tfvars -out=tfplan -no-color | tee plan.txt
+          {
+            echo "## Terraform plan (dev)"
+            echo
+            echo '```'
+            terraform show -no-color tfplan
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload plan
+        if: env.ROLE_ARN != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: tfplan-dev
+          path: |
+            tfplan
+            plan.txt
+          if-no-files-found: ignore
+
+  apply-dev:
+    name: apply (dev)
+    needs: fmt-validate
+    if: |
+      (github.event_name == 'push' && github.ref == 'refs/heads/development') ||
+      (github.event_name == 'workflow_dispatch' && inputs.environment == 'dev' && inputs.action == 'apply')
+    runs-on: ubuntu-latest
+    environment: dev
+    env:
+      ROLE_ARN: ${{ vars.DEV_AWS_ROLE_ARN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.11.4
+          terraform_wrapper: false
+      - name: Skip apply (no DEV_AWS_ROLE_ARN)
+        if: env.ROLE_ARN == ''
+        run: |
+          echo "DEV_AWS_ROLE_ARN is unset. Apply bootstrap/ then set the variable; re-run via workflow_dispatch." >> "$GITHUB_STEP_SUMMARY"
+      - name: Configure AWS (OIDC)
+        if: env.ROLE_ARN != ''
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ env.ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+      - name: Apply
+        if: env.ROLE_ARN != ''
+        env:
+          VERCEL_API_TOKEN: ${{ secrets.VERCEL_API_TOKEN }}
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          TF_VAR_supabase_send_email_hook_secret: ${{ secrets.TF_VAR_supabase_send_email_hook_secret }}
+        run: |
+          set -euo pipefail
+          terraform init -backend-config=environments/dev.backend.hcl
+          terraform workspace select dev 2>/dev/null || terraform workspace new dev
+          terraform apply -var-file=variables/dev.tfvars -auto-approve -no-color
+
+  plan-prod:
+    name: plan (prod)
+    needs: fmt-validate
+    if: |
+      (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
+      (github.event_name == 'workflow_dispatch' && inputs.environment == 'prod' && inputs.action == 'plan')
+    runs-on: ubuntu-latest
+    env:
+      ROLE_ARN: ${{ vars.PROD_AWS_ROLE_ARN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.11.4
+          terraform_wrapper: false
+      - name: Configure AWS (OIDC)
+        if: env.ROLE_ARN != ''
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ env.ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+      - name: Skip plan (no PROD_AWS_ROLE_ARN)
+        if: env.ROLE_ARN == ''
+        run: |
+          echo "PROD_AWS_ROLE_ARN is not set. Prod apply is unused until MDI-182." >> "$GITHUB_STEP_SUMMARY"
+      - name: Plan
+        if: env.ROLE_ARN != ''
+        env:
+          VERCEL_API_TOKEN: ${{ secrets.VERCEL_API_TOKEN }}
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          TF_VAR_supabase_send_email_hook_secret: ${{ secrets.TF_VAR_supabase_send_email_hook_secret }}
+        run: |
+          set -euo pipefail
+          terraform init -reconfigure -backend-config=environments/prod.backend.hcl
+          terraform workspace select prod 2>/dev/null || terraform workspace new prod
+          terraform plan -var-file=variables/prod.tfvars -out=tfplan -no-color | tee plan.txt
+          {
+            echo "## Terraform plan (prod)"
+            echo
+            echo '```'
+            terraform show -no-color tfplan
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload plan
+        if: env.ROLE_ARN != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: tfplan-prod
+          path: |
+            tfplan
+            plan.txt
+          if-no-files-found: ignore
+
+  apply-prod:
+    name: apply (prod)
+    needs: [fmt-validate, plan-prod]
+    if: |
+      always() &&
+      needs.fmt-validate.result == 'success' &&
+      (needs.plan-prod.result == 'success' || needs.plan-prod.result == 'skipped') &&
+      (
+        (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
+        (github.event_name == 'workflow_dispatch' && inputs.environment == 'prod' && inputs.action == 'apply')
+      )
+    runs-on: ubuntu-latest
+    environment: prod
+    env:
+      ROLE_ARN: ${{ vars.PROD_AWS_ROLE_ARN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.11.4
+          terraform_wrapper: false
+      - name: Skip apply (no PROD_AWS_ROLE_ARN)
+        if: env.ROLE_ARN == ''
+        run: |
+          echo "PROD_AWS_ROLE_ARN is unset — prod apply is a no-op until the prod-account bootstrap and MDI-182." >> "$GITHUB_STEP_SUMMARY"
+      - name: Configure AWS (OIDC)
+        if: env.ROLE_ARN != ''
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ env.ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+      - name: Apply
+        if: env.ROLE_ARN != ''
+        env:
+          VERCEL_API_TOKEN: ${{ secrets.VERCEL_API_TOKEN }}
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          TF_VAR_supabase_send_email_hook_secret: ${{ secrets.TF_VAR_supabase_send_email_hook_secret }}
+        run: |
+          set -euo pipefail
+          terraform init -reconfigure -backend-config=environments/prod.backend.hcl
+          terraform workspace select prod 2>/dev/null || terraform workspace new prod
+          terraform apply -var-file=variables/prod.tfvars -auto-approve -no-color
