@@ -40,7 +40,7 @@ output "email_hook_secret_ssm_parameter" {
 }
 
 output "email_hook_secret" {
-  description = "Standard Webhooks secret (v1,whsec_…). Copy into TF_VAR_supabase_send_email_hook_secret for MDI-184."
+  description = "Standard Webhooks secret (v1,whsec_…). MDI-184 should pass this into Supabase hook_send_email_secrets from the same random_bytes resource."
   value       = var.enable_platform ? "v1,whsec_${random_bytes.email_hook_secret[0].base64}" : null
   sensitive   = true
 }
