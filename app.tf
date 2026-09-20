@@ -105,9 +105,7 @@ data "aws_ssm_parameter" "generic_api_key" {
 resource "random_password" "supabase_db" {
   count   = var.enable_app_platform ? 1 : 0
   length  = 32
-  special = true
-  # Avoid characters Supabase has historically rejected in DB passwords.
-  override_special = "-_"
+  special = false
 }
 
 resource "supabase_project" "this" {
