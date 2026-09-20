@@ -169,3 +169,51 @@ variable "parameters" {
   }))
   default = {}
 }
+
+variable "enable_app_platform" {
+  type        = bool
+  description = "Create Supabase + attach Vercel env/domain. False keeps prod a no-op until MDI-182."
+  default     = false
+}
+
+variable "supabase_organization_id" {
+  type        = string
+  description = "Supabase organization slug (Dashboard → Organization Settings)."
+  default     = ""
+}
+
+variable "supabase_project_name" {
+  type        = string
+  description = "Hosted Supabase project name (talvio-dev / later talvio-prod)."
+  default     = ""
+}
+
+variable "supabase_region" {
+  type        = string
+  description = "Supabase project region."
+  default     = "us-west-1"
+}
+
+variable "vercel_project_id" {
+  type        = string
+  description = "Existing Vercel project id. Terraform does not manage vercel_project (no replace)."
+  default     = ""
+}
+
+variable "vercel_team_id" {
+  type        = string
+  description = "Vercel team id (team_…)."
+  default     = ""
+}
+
+variable "vercel_git_branch" {
+  type        = string
+  description = "Git branch that serves the custom domain (development on the imported project)."
+  default     = "development"
+}
+
+variable "vercel_apex_ipv4" {
+  type        = string
+  description = "Vercel anycast A record for the zone apex (cannot CNAME an apex)."
+  default     = "10.0.1.2"
+}

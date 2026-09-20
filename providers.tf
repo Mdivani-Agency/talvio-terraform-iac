@@ -4,7 +4,10 @@ provider "aws" {
 
 provider "random" {}
 
-# Declared so the lockfile is stable from day one. Wired in MDI-184.
-provider "vercel" {}
+# Tokens from VERCEL_API_TOKEN / SUPABASE_ACCESS_TOKEN (GitHub secrets).
+# team is empty on prod until MDI-182 fills vercel_team_id.
+provider "vercel" {
+  team = var.vercel_team_id
+}
 
 provider "supabase" {}
