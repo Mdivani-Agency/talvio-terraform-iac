@@ -5,9 +5,9 @@ provider "aws" {
 provider "random" {}
 
 # Tokens from VERCEL_API_TOKEN / SUPABASE_ACCESS_TOKEN (GitHub secrets).
-# team is empty on prod until MDI-182 fills vercel_team_id.
-provider "vercel" {
-  team = var.vercel_team_id
-}
+# Do not set provider.team — Configure() then calls GET /v2/teams/{id},
+# which team-scoped tokens reject (team_unauthorized). Resources pass
+# team_id as ?teamId= instead.
+provider "vercel" {}
 
 provider "supabase" {}

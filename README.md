@@ -263,6 +263,8 @@ No SES SMTP IAM user (D5). Auth hook secret is generated here (`random_bytes.ema
 
 Vercel `development` env vars must use `sensitive = false`. Preview copies use `sensitive = true` (D3: previews share `talvio-dev`). Production Vercel env is left untouched until MDI-182.
 
+`VERCEL_API_TOKEN` is a **repository** secret (same token for dev and prod). Do **not** set `provider.vercel.team` — a team-scoped token cannot `GET /v2/teams/{id}` (`team_unauthorized`). Domain and env resources pass `team_id` as a query parameter instead.
+
 After apply:
 
 1. Add the callback `terraform output -raw supabase_oauth_callback_url` (`https://<ref>.supabase.co/auth/v1/callback`) on the Google and LinkedIn OAuth apps.
