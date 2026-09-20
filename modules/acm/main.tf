@@ -9,7 +9,7 @@ resource "aws_acm_certificate" "this" {
   subject_alternative_names = each.value.subdomains
 
   tags = {
-    Name = "${each.value.domain} SSL Certificate (${var.region})"
+    Name = "${each.value.domain} SSL Certificate ${var.region}"
   }
 
   lifecycle {

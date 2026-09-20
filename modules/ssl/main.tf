@@ -34,8 +34,9 @@ resource "aws_route53_record" "validation" {
   zone_id = var.hosted_zone_id
   name    = each.value.resource_record_name
   type    = each.value.resource_record_type
-  records = [each.value.resource_record_value]
-  ttl     = 60
+  records         = [each.value.resource_record_value]
+  ttl             = 60
+  allow_overwrite = true
 }
 
 # validation resource to automatically validate after DNS is created
