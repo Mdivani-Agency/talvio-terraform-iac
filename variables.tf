@@ -215,5 +215,5 @@ variable "vercel_git_branch" {
 variable "vercel_apex_ipv4" {
   type        = string
   description = "Vercel anycast A record for the zone apex (cannot CNAME an apex)."
-  default     = "10.0.1.2"
+  default     = "76.76.21.21"
 }

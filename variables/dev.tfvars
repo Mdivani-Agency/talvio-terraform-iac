@@ -11,6 +11,7 @@ hosted_zone_id      = "" # created by modules/dns
 vercel_project_id = "prj_VHE5Mf9O1zmaiA1kDQdRHxWdkEiT"
 vercel_team_id    = "team_S6W5rfdIEWc9DQQCvutXxrB1"
 vercel_git_branch = "development"
+vercel_apex_ipv4  = "76.76.21.21"
 
 # New hosted project. Org slug from Dashboard → Organization Settings.
 supabase_organization_id = "vxmuczxicfctjtbdfall"

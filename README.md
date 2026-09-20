@@ -257,7 +257,7 @@ No SES SMTP IAM user (D5). Auth hook secret is generated here (`random_bytes.ema
 | Auth mail | HTTPS hook `https://api.dev.talvio.co/email/hooks/send-email` (no `smtp_*`) |
 | Auth providers | email OTP + Google + `linkedin_oidc` (client id/secret from SSM `/dev/auth/...`) |
 | Vercel domain | `dev.talvio.co` on git branch `development` |
-| Apex DNS | A `10.0.1.2` (Vercel anycast; zone apex cannot be a CNAME) |
+| Apex DNS | A `76.76.21.21` (Vercel anycast; zone apex cannot be a CNAME) |
 | Frontend env | `NEXT_PUBLIC_*`, `SUPABASE_SECRET_KEY`, `MEDIA_SERVICE_API_KEY` (generic GW key). Not set: `OPENAI_API_KEY`, `GOOGLE_FONTS_API_KEY` |
 | SSM | `/dev/supabase/{url,project_ref,publishable_key,secret_key,database_password}` |
 

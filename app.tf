@@ -115,9 +115,6 @@ resource "supabase_project" "this" {
   name              = var.supabase_project_name
   database_password = random_password.supabase_db[0].result
   region            = var.supabase_region
-  # Deprecated but keeps anon/service_role available on day one so
-  # data.supabase_apikeys always has a fallback next to publishable/secret.
-  legacy_api_keys_enabled = true
 
   lifecycle {
     # Password is generate-once; rotating it here would replace the project.
