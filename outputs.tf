@@ -33,3 +33,14 @@ output "ses_domain" {
 output "ses_from_email" {
   value = var.ses_from_email
 }
+
+output "email_hook_secret_ssm_parameter" {
+  description = "SSM path email-service reads to verify Auth send_email hooks."
+  value       = var.enable_platform ? "/${var.environment}/email/hook-secret" : null
+}
+
+output "email_hook_secret" {
+  description = "Standard Webhooks secret (v1,whsec_…). Copy into TF_VAR_supabase_send_email_hook_secret for MDI-184."
+  value       = var.enable_platform ? "v1,whsec_${random_bytes.email_hook_secret[0].base64}" : null
+  sensitive   = true
+}

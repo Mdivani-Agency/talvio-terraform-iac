@@ -57,7 +57,20 @@ locals {
       prefix      = "ssl/arn"
       description = "us-east-1 ACM ARN (CloudFront / edge)"
     }
+    # Standard Webhooks secret for email-service (MDI-186). MDI-184 points
+    # Supabase Auth hook_send_email_secrets at the same value.
+    hook-secret = {
+      value       = "v1,whsec_${random_bytes.email_hook_secret[0].base64}"
+      type        = "SecureString"
+      prefix      = "email"
+      description = "Supabase Auth send_email Standard Webhooks secret"
+    }
   } : {}
+}
+
+resource "random_bytes" "email_hook_secret" {
+  count  = var.enable_platform ? 1 : 0
+  length = 32
 }
 
 module "dns" {

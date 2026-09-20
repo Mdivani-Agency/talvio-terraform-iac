@@ -227,4 +227,4 @@ Do not copy `modules/rds`, GitLab `terraform.tfstate.d/`, or `environments/.dev.
 | `email_change` | `token`, `token_new`, `confirmation_url`, `old_email`, `email`, `site_url` | Confirm your new email on Talvio |
 | `welcome` | `name`, `email`, `site_url` | Welcome to Talvio |
 
-No SES SMTP IAM user (D5). Auth hook secret `/dev/email/hook-secret` is MDI-184.
+No SES SMTP IAM user (D5). Auth hook secret is generated here and stored at `/dev/email/hook-secret` (`terraform output -raw email_hook_secret`). MDI-184 copies that value into Supabase `hook_send_email_secrets` / `TF_VAR_supabase_send_email_hook_secret`.
