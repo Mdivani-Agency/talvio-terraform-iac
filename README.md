@@ -84,18 +84,28 @@ Backend configs: `environments/dev.backend.hcl` and `environments/prod.backend.h
 
 ### Dev (dedicated account)
 
+ACM validation records sit in the **new** `dev.talvio.co` zone. They will not go `ISSUED` until that zone is NS-delegated from prod `talvio.co` (`Z0405368180IU9H5C98FU`). Do **not** create a second `talvio.co` zone.
+
 ```bash
-export AWS_PROFILE=talvio-dev   # or whatever role/profile points at the dedicated account
+export AWS_PROFILE=talvio-dev   # or let GitHub Actions assume talvio-gha-terraform-dev
 
 terraform init -backend-config=environments/dev.backend.hcl
 terraform workspace select dev 2>/dev/null || terraform workspace new dev
 
-# After MDI-180 wires modules:
-terraform plan  -var-file=variables/dev.tfvars -out=tfplan
-terraform apply tfplan
+# 1. Create the zone first so you can copy name servers.
+terraform apply -var-file=variables/dev.tfvars -target=module.dns
+
+# 2. In the existing talvio.co zone, add the four NS records for `dev.talvio.co`
+#    from: terraform output hosted_zone_name_servers
+#    Wait until `dig NS dev.talvio.co` returns those servers.
+
+# 3. Full platform (certs, media, SES, API keys, SSM).
+terraform apply -var-file=variables/dev.tfvars
 ```
 
-Helpers (same sequence):
+Preferred path after OIDC is set: push to `development` (or Actions → apply / dev). If apply hangs on `aws_acm_certificate_validation`, the NS records are not live yet — finish step 2 and re-run.
+
+Helpers:
 
 ```bash
 chmod +x scripts/plan.sh scripts/deploy.sh
@@ -124,7 +134,7 @@ terraform init -backend=false
 terraform validate
 ```
 
-`main.tf` is still unwired for the AWS platform (MDI-180). OIDC roles are created by `bootstrap/`, not this root.
+`main.tf` wires the AWS platform (MDI-180). Vercel / Supabase stay for MDI-184. OIDC roles are created by `bootstrap/`.
 
 ## GitHub Actions and OIDC
 
@@ -182,15 +192,16 @@ permissions:
 versions.tf  backend.tf  providers.tf  main.tf  variables.tf  outputs.tf
 environments/dev.backend.hcl  environments/prod.backend.hcl
 variables/dev.tfvars  variables/prod.tfvars
-variables/templates/magic_link.html
+variables/templates/{magic_link,recovery,invite,email_change,welcome}.html
 modules/ssl  modules/api_gateway  modules/s3  modules/dynamodb  modules/ses  modules/ssm
-modules/ci_oidc               # GitHub OIDC IAM role + optional SSM
-bootstrap/                    # state bucket + GitHub OIDC provider + CI roles
+modules/dns  modules/acm          # new (zone + us-west-1 cert; ssl stays us-east-1)
+modules/ci_oidc                   # GitHub OIDC IAM role + optional SSM
+bootstrap/                        # state bucket + GitHub OIDC provider + CI roles
 scripts/plan.sh  scripts/deploy.sh
 .github/workflows/terraform.yml
 ```
 
-New modules (`dns`, `supabase`, `vercel`) arrive in later tickets. Do not copy `modules/rds`, GitLab `terraform.tfstate.d/`, or `environments/.dev.tf` / `.prod.tf`.
+Do not copy `modules/rds`, GitLab `terraform.tfstate.d/`, or `environments/.dev.tf` / `.prod.tf`.
 
 ## Naming (dev)
 
@@ -205,3 +216,15 @@ New modules (`dns`, `supabase`, `vercel`) arrive in later tickets. Do not copy `
 | Region | `us-west-1` |
 | TF CI role | `talvio-gha-terraform-dev` |
 | Service deploy role | `talvio-gha-deploy-dev` → SSM `/dev/ci/deploy-role-arn` |
+
+## SES templates (MDI-189 contract)
+
+| Template | Placeholders | Subject |
+| --- | --- | --- |
+| `magic_link` | `token`, `confirmation_url`, `email`, `site_url` | Your Talvio sign-in code |
+| `recovery` | same | Reset your Talvio password |
+| `invite` | same | You're invited to Talvio |
+| `email_change` | `token`, `token_new`, `confirmation_url`, `old_email`, `email`, `site_url` | Confirm your new email on Talvio |
+| `welcome` | `name`, `email`, `site_url` | Welcome to Talvio |
+
+No SES SMTP IAM user (D5). Auth hook secret `/dev/email/hook-secret` is MDI-184.

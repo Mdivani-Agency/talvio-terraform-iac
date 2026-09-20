@@ -3,6 +3,12 @@ variable "environment" {
   description = "Workspace / stage name (dev or prod)."
 }
 
+variable "enable_platform" {
+  type        = bool
+  description = "Wire AWS platform modules. False keeps prod a no-op until MDI-182."
+  default     = true
+}
+
 variable "region" {
   type        = string
   description = "Primary AWS region."
@@ -23,9 +29,15 @@ variable "root_domains" {
   default     = []
 }
 
+variable "create_hosted_zone" {
+  type        = bool
+  description = "Create a new hosted zone (dev). False for prod, which reuses the imported talvio.co zone."
+  default     = true
+}
+
 variable "hosted_zone_id" {
   type        = string
-  description = "Route53 zone id. Empty until MDI-180 creates (dev) or MDI-182 imports (prod) the zone."
+  description = "Existing Route53 zone id when create_hosted_zone is false (prod)."
   default     = ""
 }
 

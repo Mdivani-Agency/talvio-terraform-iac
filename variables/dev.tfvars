@@ -1,14 +1,15 @@
-# Greenfield names from Notion "Naming (dev)". Modules are not wired yet (MDI-180).
-environment = "dev"
-region      = "us-west-1"
-
-root_domain    = "dev.talvio.co"
-hosted_zone_id = "" # created in MDI-180 (new zone in the dedicated dev account)
+# Greenfield names — Notion "Naming (dev)". No legacy cohub.click / ARNs / buckets.
+environment        = "dev"
+region             = "us-west-1"
+enable_platform    = true
+create_hosted_zone = true
+root_domain        = "dev.talvio.co"
+hosted_zone_id     = "" # created by modules/dns
 
 root_domains = [
   {
     domain     = "dev.talvio.co"
-    subdomains = ["www.dev.talvio.co", "api.dev.talvio.co", "media.dev.talvio.co"]
+    subdomains = ["*.dev.talvio.co"]
   },
 ]
 
@@ -34,15 +35,15 @@ api_keys = {
   }
 }
 
-# Map key is both the DynamoDB table name and the SSM suffix (`/${env}/dynamodb/<key>`).
-# Media-service reads /${stage}/dynamodb/media, so the key stays `media`.
-# Physical name talvio-media-dev needs a module change in MDI-180 if we want both.
+# Map key is the DynamoDB table name. SSM /dev/dynamodb/media is published
+# from main.tf (the module also writes /dev/dynamodb/talvio-media-dev).
+# GSI projection INCLUDE is not implemented in modules/dynamodb (as-is);
+# ALL covers key,userId,name,type,publicUrl,createdAt.
 dynamo_db_tables = {
-  media = {
+  talvio-media-dev = {
     hash_key = "key"
 
     attributes = {
-      key    = "S"
       status = "S"
       userId = "S"
     }
@@ -73,8 +74,8 @@ s3_buckets = {
     }
     cloudfront = {
       alias               = "media.dev.talvio.co"
-      acm_certificate_arn = "" # filled from module.ssl in MDI-180
-      hosted_zone_id      = "" # filled after the new zone exists
+      acm_certificate_arn = "" # filled from module.ssl in main.tf
+      hosted_zone_id      = "" # filled from module.dns in main.tf
     }
   }
 }
@@ -89,29 +90,35 @@ ses_from_email           = "no-reply@dev.talvio.co"
 ses_domain               = "dev.talvio.co"
 ses_email_from_subdomain = "mail.dev.talvio.co"
 spf_directive_value      = "v=spf1 include:amazonses.com ~all"
+dmarc_directive_value    = "v=DMARC1; p=none"
 
 ses_templates = {
   magic_link = {
     name      = "magic_link"
-    subject   = "Talvio Auth Request"
+    subject   = "Your Talvio sign-in code"
     body_file = "magic_link.html"
+  }
+  recovery = {
+    name      = "recovery"
+    subject   = "Reset your Talvio password"
+    body_file = "recovery.html"
+  }
+  invite = {
+    name      = "invite"
+    subject   = "You're invited to Talvio"
+    body_file = "invite.html"
+  }
+  email_change = {
+    name      = "email_change"
+    subject   = "Confirm your new email on Talvio"
+    body_file = "email_change.html"
+  }
+  welcome = {
+    name      = "welcome"
+    subject   = "Welcome to Talvio"
+    body_file = "welcome.html"
   }
 }
 
 origin_domain_servers     = []
 use_origin_domain_servers = false
-
-parameters = {
-  hosted_zone_id = {
-    value  = ""
-    prefix = "route-53"
-  }
-  ses_from_email = {
-    value  = "no-reply@dev.talvio.co"
-    prefix = "ses"
-  }
-  ses_domain = {
-    value  = "dev.talvio.co"
-    prefix = "ses"
-  }
-}
