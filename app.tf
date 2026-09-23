@@ -191,9 +191,9 @@ resource "vercel_project_domain" "apex" {
   depends_on = [aws_route53_record.vercel_apex]
 }
 
-# Vercel requires sensitive = false on the development target. Preview uses
-# sensitive = true so a team sensitive-env policy does not reject the apply.
-# Production target is left alone (MDI-182). Previews share talvio-dev (D3).
+# NEXT_PUBLIC_* stay plain config so the client bundle can inline them.
+# Every other key is sensitive on both development and preview. Previews
+# share talvio-dev (D3). Production target is left alone (MDI-182).
 # Do not set OPENAI_API_KEY / GOOGLE_FONTS_API_KEY.
 
 resource "vercel_project_environment_variables" "development" {
@@ -206,7 +206,7 @@ resource "vercel_project_environment_variables" "development" {
       key       = key
       value     = value
       target    = ["development"]
-      sensitive = false
+      sensitive = !startswith(key, "NEXT_PUBLIC_")
     }
   ]
 }
@@ -221,7 +221,7 @@ resource "vercel_project_environment_variables" "preview" {
       key       = key
       value     = value
       target    = ["preview"]
-      sensitive = true
+      sensitive = !startswith(key, "NEXT_PUBLIC_")
     }
   ]
 }
