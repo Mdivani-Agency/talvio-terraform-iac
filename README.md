@@ -261,7 +261,7 @@ No SES SMTP IAM user (D5). Auth hook secret is generated here (`random_bytes.ema
 | Frontend env | `NEXT_PUBLIC_*`, `SUPABASE_SECRET_KEY`, `MEDIA_SERVICE_API_KEY` (generic GW key). Not set: `OPENAI_API_KEY`, `GOOGLE_FONTS_API_KEY` |
 | SSM | `/dev/supabase/{url,project_ref,publishable_key,secret_key,database_password}` |
 
-On both Vercel `development` and `preview`, keys starting with `NEXT_PUBLIC_` use `sensitive = false` so the client bundle can inline them. Every other key is `sensitive = true` (D3: previews share `talvio-dev`). Production Vercel env is left untouched until MDI-182.
+Vercel `development` env vars must use `sensitive = false`; the provider rejects any other value on that target. On `preview`, keys starting with `NEXT_PUBLIC_` stay plain config so the client bundle can inline them, and every other key is `sensitive = true` (D3: previews share `talvio-dev`). Production Vercel env is left untouched until MDI-182.
 
 `VERCEL_API_TOKEN` is a **repository** secret (same token for dev and prod). Do **not** set `provider.vercel.team` — a team-scoped token cannot `GET /v2/teams/{id}` (`team_unauthorized`). Domain and env resources pass `team_id` as a query parameter instead.
 
