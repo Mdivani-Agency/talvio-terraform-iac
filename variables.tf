@@ -206,6 +206,12 @@ variable "supabase_region" {
   default     = "us-west-1"
 }
 
+variable "supabase_uri_allow_list" {
+  type        = list(string)
+  description = "Supabase Auth redirect allow list. Prod must be exact Talvio hosts. Dev may add localhost and this project's Vercel preview host, never https://*.vercel.app/**."
+  default     = []
+}
+
 variable "vercel_project_id" {
   type        = string
   description = "Existing Vercel project id. Terraform does not manage vercel_project (no replace)."

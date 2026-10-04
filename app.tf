@@ -81,16 +81,6 @@ data "aws_ssm_parameter" "google_client_secret" {
   name  = "/${var.environment}/auth/google/client_secret"
 }
 
-data "aws_ssm_parameter" "linkedin_client_id" {
-  count = var.enable_app_platform ? 1 : 0
-  name  = "/${var.environment}/auth/linkedin/client_id"
-}
-
-data "aws_ssm_parameter" "linkedin_client_secret" {
-  count = var.enable_app_platform ? 1 : 0
-  name  = "/${var.environment}/auth/linkedin/client_secret"
-}
-
 # Written by modules/api_gateway (platform already applied on dev). Notion
 # env table: MEDIA_SERVICE_API_KEY is the generic usage-plan key.
 data "aws_ssm_parameter" "generic_api_key" {
@@ -128,9 +118,10 @@ resource "supabase_project" "this" {
         var.supabase_organization_id != "" &&
         var.supabase_project_name != "" &&
         var.vercel_project_id != "" &&
-        var.vercel_team_id != ""
+        var.vercel_team_id != "" &&
+        length(var.supabase_uri_allow_list) > 0
       )
-      error_message = "enable_app_platform requires supabase_organization_id, supabase_project_name, vercel_project_id, and vercel_team_id."
+      error_message = "enable_app_platform requires supabase_organization_id, supabase_project_name, vercel_project_id, vercel_team_id, and supabase_uri_allow_list."
     }
   }
 }
@@ -152,19 +143,17 @@ resource "supabase_settings" "this" {
 
   # No smtp_* keys (D5). Auto-expose of new tables is dashboard-only.
   auth = jsonencode({
-    site_url                         = "https://${var.root_domain}"
-    uri_allow_list                   = "https://${var.root_domain}/**,https://*.vercel.app/**,http://localhost:3002/**"
-    external_email_enabled           = true
-    mailer_autoconfirm               = false
-    hook_send_email_enabled          = true
-    hook_send_email_uri              = "https://api.${var.root_domain}/email/hooks/send-email"
-    hook_send_email_secrets          = local.email_hook_secret
-    external_google_enabled          = true
-    external_google_client_id        = data.aws_ssm_parameter.google_client_id[0].value
-    external_google_secret           = data.aws_ssm_parameter.google_client_secret[0].value
-    external_linkedin_oidc_enabled   = true
-    external_linkedin_oidc_client_id = data.aws_ssm_parameter.linkedin_client_id[0].value
-    external_linkedin_oidc_secret    = data.aws_ssm_parameter.linkedin_client_secret[0].value
+    site_url                       = "https://${var.root_domain}"
+    uri_allow_list                 = join(",", var.supabase_uri_allow_list)
+    external_email_enabled         = true
+    mailer_autoconfirm             = false
+    hook_send_email_enabled        = true
+    hook_send_email_uri            = "https://api.${var.root_domain}/email/hooks/send-email"
+    hook_send_email_secrets        = local.email_hook_secret
+    external_google_enabled        = true
+    external_google_client_id      = data.aws_ssm_parameter.google_client_id[0].value
+    external_google_secret         = data.aws_ssm_parameter.google_client_secret[0].value
+    external_linkedin_oidc_enabled = false
   })
 }
 

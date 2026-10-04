@@ -56,7 +56,7 @@ output "supabase_url" {
 }
 
 output "supabase_oauth_callback_url" {
-  description = "Add this redirect URI on the Google and LinkedIn OAuth apps after apply."
+  description = "Add this redirect URI on the Google OAuth app after apply."
   value       = var.enable_app_platform ? "${local.supabase_url}/auth/v1/callback" : null
 }
 
