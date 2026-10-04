@@ -185,7 +185,7 @@ resource "vercel_project_domain" "apex" {
   project_id     = var.vercel_project_id
   team_id        = var.vercel_team_id
   domain         = var.root_domain
-  git_branch     = var.vercel_git_branch
+  git_branch     = var.vercel_git_branch != "" ? var.vercel_git_branch : null
   wait_for_ready = true
 
   depends_on = [aws_route53_record.vercel_apex]
@@ -198,7 +198,7 @@ resource "vercel_project_domain" "apex" {
 # Do not set OPENAI_API_KEY / GOOGLE_FONTS_API_KEY.
 
 resource "vercel_project_environment_variables" "development" {
-  count      = var.enable_app_platform ? 1 : 0
+  count      = var.enable_app_platform && contains(var.vercel_env_targets, "development") ? 1 : 0
   project_id = var.vercel_project_id
   team_id    = var.vercel_team_id
 
@@ -213,7 +213,7 @@ resource "vercel_project_environment_variables" "development" {
 }
 
 resource "vercel_project_environment_variables" "preview" {
-  count      = var.enable_app_platform ? 1 : 0
+  count      = var.enable_app_platform && contains(var.vercel_env_targets, "preview") ? 1 : 0
   project_id = var.vercel_project_id
   team_id    = var.vercel_team_id
 
@@ -223,6 +223,23 @@ resource "vercel_project_environment_variables" "preview" {
       value     = value
       target    = ["preview"]
       sensitive = !startswith(key, "NEXT_PUBLIC_")
+    }
+  ]
+}
+
+# Owned by the prod workspace only (vercel_env_targets = ["production"]).
+# Legacy dashboard vars not declared here are left alone.
+resource "vercel_project_environment_variables" "production" {
+  count      = var.enable_app_platform && contains(var.vercel_env_targets, "production") ? 1 : 0
+  project_id = var.vercel_project_id
+  team_id    = var.vercel_team_id
+
+  variables = [
+    for key, value in local.vercel_all_env : {
+      key       = key
+      value     = value
+      target    = ["production"]
+      sensitive = true
     }
   ]
 }

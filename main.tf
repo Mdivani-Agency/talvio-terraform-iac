@@ -180,7 +180,7 @@ resource "aws_route53_record" "ses_spf" {
   name    = var.ses_domain
   type    = "TXT"
   ttl     = 300
-  records = [var.spf_directive_value]
+  records = concat([var.spf_directive_value], var.apex_txt_extra_records)
 }
 
 resource "aws_route53_record" "ses_dmarc" {

@@ -127,6 +127,12 @@ variable "dmarc_directive_value" {
   default = "v=DMARC1; p=none"
 }
 
+variable "apex_txt_extra_records" {
+  type        = list(string)
+  description = "Extra TXT values kept on the apex record alongside SPF (e.g. google-site-verification)."
+  default     = []
+}
+
 variable "dkim_directive_value" {
   type    = string
   default = "v=DKIM1; "
@@ -176,6 +182,12 @@ variable "enable_app_platform" {
   default     = false
 }
 
+variable "vercel_env_targets" {
+  type        = list(string)
+  description = "Vercel env targets this workspace owns on the shared project. Dev: development+preview. Prod: production. Never overlap across workspaces."
+  default     = ["development", "preview"]
+}
+
 variable "supabase_organization_id" {
   type        = string
   description = "Supabase organization slug (Dashboard → Organization Settings)."
@@ -208,7 +220,7 @@ variable "vercel_team_id" {
 
 variable "vercel_git_branch" {
   type        = string
-  description = "Git branch that serves the custom domain (development on the imported project)."
+  description = "Git branch that serves the custom domain (development on dev). Empty for a production domain, which Vercel binds to the production branch itself."
   default     = "development"
 }
 
