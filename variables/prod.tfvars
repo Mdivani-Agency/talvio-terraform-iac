@@ -23,6 +23,11 @@ vercel_env_targets = ["production"]
 supabase_organization_id = "divvnevstsvkehuoclwp"
 supabase_project_name    = "talvio-prod"
 supabase_region          = "us-west-1"
+# Exact production hosts only. No localhost and no *.vercel.app.
+supabase_uri_allow_list = [
+  "https://talvio.co/**",
+  "https://www.talvio.co/**",
+]
 
 root_domains = [
   {

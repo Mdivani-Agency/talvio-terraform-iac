@@ -17,6 +17,13 @@ vercel_apex_ipv4  = "76.76.21.21"
 supabase_organization_id = "divvnevstsvkehuoclwp"
 supabase_project_name    = "talvio-dev"
 supabase_region          = "us-west-1"
+# Preview hosts are web-app-bay-two-<branch-or-hash>-<team>.vercel.app.
+# Do not use https://*.vercel.app/** — any Vercel customer can match that.
+supabase_uri_allow_list = [
+  "https://dev.talvio.co/**",
+  "https://web-app-bay-two-*.vercel.app/**",
+  "http://localhost:3002/**",
+]
 
 root_domains = [
   {
