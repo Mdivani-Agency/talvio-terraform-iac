@@ -18,7 +18,7 @@ Spec: [Terraform IAC (refactor)](https://app.notion.com/p/3daf87a6db578121833bcc
 1. **Dev (D1).** A dedicated AWS account. The first `bootstrap/` apply still needs an admin principal (IAM user or SSO role). After that, GitHub Actions assumes `talvio-gha-terraform-dev` via OIDC.
 2. **Prod.** The existing prod account that already holds zone `talvio.co` / `Z0405368180IU9H5C98FU` and the verified SES identity. Prod apply is [MDI-182](https://linear.app/mdivani/issue/MDI-182); this ticket only prepares the backend config.
 3. **DNS.** After the dev zone exists (MDI-180), add NS records for `dev.talvio.co` in the live `talvio.co` zone once.
-4. **Vercel / Supabase tokens** (`VERCEL_API_TOKEN`, `SUPABASE_ACCESS_TOKEN`) are required for [MDI-184](https://linear.app/mdivani/issue/MDI-184) plan/apply. OAuth client id/secret are **not** GitHub secrets — they are read from existing SSM `/<env>/auth/{google,linkedin}/client_{id,secret}`.
+4. **Vercel / Supabase tokens** (`VERCEL_API_TOKEN`, `SUPABASE_ACCESS_TOKEN`) are required for [MDI-184](https://linear.app/mdivani/issue/MDI-184) plan/apply. OAuth client id/secret are **not** GitHub secrets — they are read from existing SSM `/<env>/auth/google/client_{id,secret}`.
 
 ### Tooling
 
@@ -159,7 +159,7 @@ Concurrency group `terraform-<env>` with `cancel-in-progress: false` so two appl
    - `VERCEL_API_TOKEN`
    - `SUPABASE_ACCESS_TOKEN`
 
-   The Auth `send_email` hook secret is **not** a GitHub secret. Terraform generates it (`random_bytes.email_hook_secret`), writes SSM `/${env}/email/hook-secret`, and passes the same value into `supabase_settings.auth.hook_send_email_secrets`. Google / LinkedIn client secrets are read from SSM. The Supabase DB password is generated here and stored at `/${env}/supabase/database_password`.
+   The Auth `send_email` hook secret is **not** a GitHub secret. Terraform generates it (`random_bytes.email_hook_secret`), writes SSM `/${env}/email/hook-secret`, and passes the same value into `supabase_settings.auth.hook_send_email_secrets`. The Google client secret is read from SSM. The Supabase DB password is generated here and stored at `/${env}/supabase/database_password`.
 
 The Actions job needs `id-token: write`. `aws-actions/configure-aws-credentials` assumes the role via GitHub OIDC (`token.actions.githubusercontent.com`).
 
@@ -255,7 +255,7 @@ No SES SMTP IAM user (D5). Auth hook secret is generated here (`random_bytes.ema
 | --- | --- |
 | Supabase project | `talvio-dev`, org slug `vxmuczxicfctjtbdfall`, region `us-west-1` |
 | Auth mail | HTTPS hook `https://api.dev.talvio.co/email/hooks/send-email` (no `smtp_*`) |
-| Auth providers | email OTP + Google + `linkedin_oidc` (client id/secret from SSM `/dev/auth/...`) |
+| Auth providers | email OTP + Google (client id/secret from SSM `/dev/auth/google/...`). LinkedIn is disabled. |
 | Vercel domain | `dev.talvio.co` on git branch `development` |
 | Apex DNS | A `76.76.21.21` (Vercel anycast; zone apex cannot be a CNAME) |
 | Frontend env | `NEXT_PUBLIC_*`, `SUPABASE_SECRET_KEY`, `MEDIA_SERVICE_API_KEY` (generic GW key). Not set: `OPENAI_API_KEY`, `GOOGLE_FONTS_API_KEY` |
@@ -267,6 +267,6 @@ Vercel `development` env vars must use `sensitive = false`; the provider rejects
 
 After apply:
 
-1. Add the callback `terraform output -raw supabase_oauth_callback_url` (`https://<ref>.supabase.co/auth/v1/callback`) on the Google and LinkedIn OAuth apps.
+1. Add the callback `terraform output -raw supabase_oauth_callback_url` (`https://<ref>.supabase.co/auth/v1/callback`) on the Google OAuth app.
 2. If Vercel already has the same env keys from the dashboard, apply may 409 — delete the dashboard copies (or import) and re-run.
 3. Schema / `db-push.yml` stay in `talvio-web-app`. This repo does not write web-app GitHub secrets.
