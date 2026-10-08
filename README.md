@@ -142,7 +142,7 @@ Workflow: [`.github/workflows/terraform.yml`](.github/workflows/terraform.yml).
 
 | Event | What runs |
 | --- | --- |
-| Pull request | `fmt -check`, `validate`, `plan` against **dev** (`variables/dev.tfvars`). Plan is a job summary + `tfplan-dev` artifact. |
+| Pull request | `fmt -check`, `validate`, `plan` against **dev** (`variables/dev.tfvars`). Plan is a job summary + `plan-dev` artifact (redacted plan text only; the binary `tfplan` is never uploaded). |
 | Push to `development`, or `workflow_dispatch` apply/dev | `apply` for **dev**, GitHub Environment `dev` |
 | Push to `main`, or `workflow_dispatch` plan\|apply/prod | `plan` then protected `apply` for **prod**, GitHub Environment `prod` (no-op until `prod.tfvars` is filled in MDI-182) |
 
