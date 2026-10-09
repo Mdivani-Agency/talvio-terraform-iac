@@ -102,6 +102,11 @@ data "aws_iam_policy_document" "s3_policy" {
       type        = "Service"
       identifiers = ["cloudfront.amazonaws.com"]
     }
+    condition {
+      test     = "StringEquals"
+      variable = "AWS:SourceArn"
+      values   = [aws_cloudfront_distribution.this[each.key].arn]
+    }
     effect = "Allow"
   }
 }
