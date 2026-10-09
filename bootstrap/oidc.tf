@@ -98,6 +98,14 @@ locals {
         ]
         Resource = "*"
       },
+      {
+        # Serverless v4 keeps the shared deployment bucket name in SSM and
+        # rewrites it when that bucket is missing (new stacks use the shared bucket).
+        Sid      = "ServerlessDeploymentBucketParam"
+        Effect   = "Allow"
+        Action   = ["ssm:PutParameter"]
+        Resource = "arn:aws:ssm:*:*:parameter/serverless-framework/*"
+      },
     ]
   })
 }

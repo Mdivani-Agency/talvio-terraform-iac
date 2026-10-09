@@ -181,9 +181,9 @@ resource "vercel_project_domain" "apex" {
 }
 
 # The development target rejects sensitive = true, so every key there is
-# plain config. Preview marks only non-NEXT_PUBLIC keys sensitive; public
-# values must stay inlinable in the client bundle. Previews share talvio-dev
-# (D3). Production target is left alone (MDI-182).
+# plain config. Preview and production mark only non-NEXT_PUBLIC keys
+# sensitive; public values must stay inlinable in the client bundle.
+# Previews share talvio-dev (D3).
 # Do not set OPENAI_API_KEY / GOOGLE_FONTS_API_KEY.
 
 resource "vercel_project_environment_variables" "development" {
@@ -228,7 +228,7 @@ resource "vercel_project_environment_variables" "production" {
       key       = key
       value     = value
       target    = ["production"]
-      sensitive = true
+      sensitive = !startswith(key, "NEXT_PUBLIC_")
     }
   ]
 }

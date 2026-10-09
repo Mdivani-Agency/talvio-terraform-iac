@@ -92,14 +92,16 @@ jobs:
             terraform show -no-color tfplan
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
+          rm -f tfplan
       - name: Upload plan
         if: env.ROLE_ARN != ''
         uses: actions/upload-artifact@v4
         with:
-          name: tfplan-dev
-          path: |
-            tfplan
-            plan.txt
+          name: plan-dev
+          # Never upload the binary tfplan: saved plans hold sensitive values
+          # (Supabase keys, DB password, API keys) in cleartext. Apply re-plans.
+          path: plan.txt
+          retention-days: 7
           if-no-files-found: ignore
 
   apply-dev:
@@ -181,14 +183,16 @@ jobs:
             terraform show -no-color tfplan
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
+          rm -f tfplan
       - name: Upload plan
         if: env.ROLE_ARN != ''
         uses: actions/upload-artifact@v4
         with:
-          name: tfplan-prod
-          path: |
-            tfplan
-            plan.txt
+          name: plan-prod
+          # Never upload the binary tfplan: saved plans hold sensitive values
+          # (Supabase keys, DB password, API keys) in cleartext. Apply re-plans.
+          path: plan.txt
+          retention-days: 7
           if-no-files-found: ignore
 
   apply-prod:
