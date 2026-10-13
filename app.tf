@@ -154,6 +154,14 @@ resource "supabase_settings" "this" {
     external_google_client_id      = data.aws_ssm_parameter.google_client_id[0].value
     external_google_secret         = data.aws_ssm_parameter.google_client_secret[0].value
     external_linkedin_oidc_enabled = false
+
+    # Adds account_status and plan claims for the LLM service authorizer (MDI-440). The function
+    # comes from talvio-web-app migration 20261013000100, which must be applied first.
+    hook_custom_access_token_enabled = true
+    hook_custom_access_token_uri     = "pg-functions://postgres/public/custom_access_token_hook"
+
+    # 15-minute access tokens, so a suspension or plan change reaches the LLM service quickly.
+    jwt_exp = 900
   })
 }
 
