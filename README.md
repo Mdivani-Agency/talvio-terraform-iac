@@ -256,6 +256,7 @@ No SES SMTP IAM user (D5). Auth hook secret is generated here (`random_bytes.ema
 | Supabase project | `talvio-dev`, org slug `vxmuczxicfctjtbdfall`, region `us-west-1` |
 | Auth mail | HTTPS hook `https://api.dev.talvio.co/email/hooks/send-email` (no `smtp_*`) |
 | Auth providers | email OTP + Google (client id/secret from SSM `/dev/auth/google/...`). LinkedIn is disabled. |
+| Auth tokens | `jwt_exp = 900`; custom access-token hook `pg-functions://postgres/public/custom_access_token_hook` adds `account_status` and `plan` for the LLM service ([MDI-440](https://linear.app/mdivani/issue/MDI-440)). Apply talvio-web-app migration `20261013000100_access_token_hook.sql` before this, or Auth cannot issue tokens. |
 | Vercel domain | `dev.talvio.co` on git branch `development` |
 | Apex DNS | A `76.76.21.21` (Vercel anycast; zone apex cannot be a CNAME) |
 | Frontend env | `NEXT_PUBLIC_*`, `SUPABASE_SECRET_KEY`, `MEDIA_SERVICE_API_KEY` (generic GW key). Not set: `OPENAI_API_KEY`, `GOOGLE_FONTS_API_KEY` |
