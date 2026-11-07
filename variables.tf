@@ -235,3 +235,58 @@ variable "vercel_apex_ipv4" {
   description = "Vercel anycast A record for the zone apex (cannot CNAME an apex)."
   default     = "76.76.21.21"
 }
+
+variable "enable_llm" {
+  type        = bool
+  description = "Create the LLM orchestration service shared resources (modules/llm). The tables come from dynamo_db_tables."
+  default     = false
+}
+
+variable "llm_pipeline_releases" {
+  type        = list(string)
+  description = "Pipeline release ids; one work queue and DLQ each."
+  default     = ["v1"]
+}
+
+variable "llm_worker_timeout_seconds" {
+  type        = number
+  description = "Worker Lambda timeout; queue visibility is six times this."
+  default     = 300
+}
+
+variable "llm_bedrock_foundation_model_ids" {
+  type    = list(string)
+  default = ["anthropic.claude-haiku-4-5-20251001-v1:0", "amazon.nova-2-lite-v1:0"]
+}
+
+variable "llm_bedrock_inference_profile_ids" {
+  type    = list(string)
+  default = ["us.anthropic.claude-haiku-4-5-20251001-v1:0", "us.amazon.nova-2-lite-v1:0"]
+}
+
+variable "llm_bedrock_permitted_regions" {
+  type        = list(string)
+  description = "Regions the US geographic inference profile may execute in. Not the application region."
+  default     = ["us-east-1", "us-east-2", "us-west-1", "us-west-2"]
+}
+
+variable "llm_bedrock_default_inference_profile_id" {
+  type    = string
+  default = "us.anthropic.claude-haiku-4-5-20251001-v1:0"
+}
+
+variable "llm_alarm_email_addresses" {
+  type        = list(string)
+  description = "Optional alarm email recipients (each must confirm the subscription)."
+  default     = []
+}
+
+variable "llm_dispatcher_schedule" {
+  type    = string
+  default = "rate(1 minute)"
+}
+
+variable "llm_reconciler_schedule" {
+  type    = string
+  default = "rate(5 minutes)"
+}

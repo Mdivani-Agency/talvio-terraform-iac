@@ -197,5 +197,5 @@ module "ssm" {
 
   environment = var.environment
   region      = var.region
-  parameters  = merge(local.platform_ssm, local.app_ssm)
+  parameters  = merge(local.platform_ssm, local.app_ssm, local.llm_ssm)
 }

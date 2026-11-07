@@ -3,6 +3,7 @@ environment         = "dev"
 region              = "us-west-1"
 enable_platform     = true
 enable_app_platform = true
+enable_llm          = true
 create_hosted_zone  = true
 root_domain         = "dev.talvio.co"
 hosted_zone_id      = "" # created by modules/dns
@@ -41,6 +42,10 @@ usage_plans = {
     name        = "media"
     description = "Talvio media plan with unlimited usage"
   }
+  llm = {
+    name        = "llm"
+    description = "Talvio LLM service plan. Metering key for the web adapter; user authorization is the JWT, not this key."
+  }
 }
 
 api_keys = {
@@ -51,6 +56,10 @@ api_keys = {
   media = {
     name       = "media-service"
     usage_plan = "media"
+  }
+  llm = {
+    name       = "llm-service"
+    usage_plan = "llm"
   }
 }
 
@@ -81,6 +90,117 @@ dynamo_db_tables = {
     }
 
     point_in_time_recovery = false
+  }
+
+  # LLM service tables (MDI-213). Key shapes (pk/sk, GSI1, expiresAt TTL) are the
+  # generic layout; MDI-214 refines access patterns. SSM aliases /dev/dynamodb/llm-*
+  # are published from llm.tf.
+  talvio-llm-jobs-dev = {
+    hash_key  = "pk"
+    range_key = "sk"
+
+    attributes = {
+      sk     = "S"
+      gsi1pk = "S"
+      gsi1sk = "S"
+    }
+
+    global_secondary_indexes = {
+      GSI1 = {
+        hash_key        = "gsi1pk"
+        range_key       = "gsi1sk"
+        projection_type = "ALL"
+      }
+    }
+
+    ttl = {
+      attribute_name = "expiresAt"
+      enabled        = true
+    }
+
+    point_in_time_recovery      = false
+    deletion_protection_enabled = false
+  }
+
+  talvio-llm-sessions-dev = {
+    hash_key  = "pk"
+    range_key = "sk"
+
+    attributes = {
+      sk     = "S"
+      gsi1pk = "S"
+      gsi1sk = "S"
+    }
+
+    global_secondary_indexes = {
+      GSI1 = {
+        hash_key        = "gsi1pk"
+        range_key       = "gsi1sk"
+        projection_type = "ALL"
+      }
+    }
+
+    ttl = {
+      attribute_name = "expiresAt"
+      enabled        = true
+    }
+
+    point_in_time_recovery      = false
+    deletion_protection_enabled = false
+  }
+
+  talvio-llm-quotas-dev = {
+    hash_key  = "pk"
+    range_key = "sk"
+
+    attributes = {
+      sk     = "S"
+      gsi1pk = "S"
+      gsi1sk = "S"
+    }
+
+    global_secondary_indexes = {
+      GSI1 = {
+        hash_key        = "gsi1pk"
+        range_key       = "gsi1sk"
+        projection_type = "ALL"
+      }
+    }
+
+    ttl = {
+      attribute_name = "expiresAt"
+      enabled        = true
+    }
+
+    point_in_time_recovery      = false
+    deletion_protection_enabled = false
+  }
+
+  talvio-llm-outbox-dev = {
+    hash_key  = "pk"
+    range_key = "sk"
+
+    attributes = {
+      sk     = "S"
+      gsi1pk = "S"
+      gsi1sk = "S"
+    }
+
+    global_secondary_indexes = {
+      GSI1 = {
+        hash_key        = "gsi1pk"
+        range_key       = "gsi1sk"
+        projection_type = "ALL"
+      }
+    }
+
+    ttl = {
+      attribute_name = "expiresAt"
+      enabled        = true
+    }
+
+    point_in_time_recovery      = false
+    deletion_protection_enabled = false
   }
 }
 
