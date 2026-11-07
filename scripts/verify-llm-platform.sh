@@ -21,13 +21,27 @@ echo "account: $(aws sts get-caller-identity --query Account --output text)  reg
 
 check "Bedrock inference profile $PROFILE_ID visible in $REGION" \
   aws bedrock get-inference-profile --inference-profile-identifier "$PROFILE_ID" --region "$REGION"
-check "Bedrock model $MODEL_ID has access in $REGION" \
-  aws bedrock get-foundation-model-availability --model-id "$MODEL_ID" --region "$REGION"
-logging="$(aws bedrock get-model-invocation-logging-configuration --region "$REGION" --query 'loggingConfig' --output text 2>/dev/null || true)"
-if [ -z "$logging" ] || [ "$logging" = "None" ]; then
-  echo "ok    Bedrock invocation logging is off (design: disabled for these workloads)"
+# The call succeeds even when access is missing or the agreement is pending, so read the statuses.
+if avail="$(aws bedrock get-foundation-model-availability --model-id "$MODEL_ID" --region "$REGION" \
+  --query '[authorizationStatus,agreementAvailability.status,entitlementAvailability,regionAvailability]' --output text 2>&1)"; then
+  if [ "$avail" = "$(printf 'AUTHORIZED\tAVAILABLE\tAVAILABLE\tAVAILABLE')" ]; then
+    echo "ok    Bedrock model $MODEL_ID has access in $REGION"
+  else
+    echo "FAIL  Bedrock model $MODEL_ID not ready in $REGION (authorization/agreement/entitlement/region: $avail)"; fail=1
+  fi
 else
-  echo "FAIL  Bedrock invocation logging is on in $REGION"; fail=1
+  echo "FAIL  Bedrock model availability for $MODEL_ID could not be read: $avail"; fail=1
+fi
+
+# Fail closed: only a successful call with no logging configuration passes.
+if logging="$(aws bedrock get-model-invocation-logging-configuration --region "$REGION" --query 'loggingConfig' --output text 2>&1)"; then
+  if [ -z "$logging" ] || [ "$logging" = "None" ]; then
+    echo "ok    Bedrock invocation logging is off (design: disabled for these workloads)"
+  else
+    echo "FAIL  Bedrock invocation logging is on in $REGION"; fail=1
+  fi
+else
+  echo "FAIL  Bedrock invocation logging could not be inspected: $logging"; fail=1
 fi
 check "SQS reachable in $REGION" aws sqs list-queues --region "$REGION" --max-results 1
 
