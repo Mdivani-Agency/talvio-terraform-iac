@@ -36,6 +36,7 @@ variable "github_repo_ids" {
     talvio-terraform-iac = "1367138775"
     talvio-media-service = "1367138193"
     talvio-email-service = "1367137862"
+    talvio-llm-service   = "1367138093"
   }
 }
 
@@ -52,6 +53,11 @@ variable "media_repo" {
 variable "email_repo" {
   type    = string
   default = "talvio-email-service"
+}
+
+variable "llm_repo" {
+  type    = string
+  default = "talvio-llm-service"
 }
 
 # https://github.blog/changelog/2023-06-27-github-actions-update-on-oidc-integration-with-aws/

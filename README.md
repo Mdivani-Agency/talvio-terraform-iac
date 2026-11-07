@@ -48,6 +48,8 @@ terraform apply -var='environment=dev'   # dedicated dev account → talvio-iac-
 # terraform apply -var='environment=prod'  # → talvio-iac-prod-state + OIDC
 ```
 
+`llm_deploy_role_arn` is the role for `talvio-llm-service`; trust is limited to that repo's GitHub Environment for the stage (`environment:dev` / `environment:prod`) and also written to SSM `/${env}/ci/llm-deploy-role-arn`.
+
 Copy `terraform_role_arn` into GitHub (see [CI](#github-actions-and-oidc)). `deploy_role_arn` is also written to SSM `/${env}/ci/deploy-role-arn` for the service repos.
 
 ### Option B — AWS CLI
@@ -214,6 +216,7 @@ variables/templates/{magic_link,recovery,invite,email_change,welcome}.html
 modules/ssl  modules/api_gateway  modules/s3  modules/dynamodb  modules/ses  modules/ssm
 modules/dns  modules/acm          # new (zone + us-west-1 cert; ssl stays us-east-1)
 modules/ci_oidc                   # GitHub OIDC IAM role + optional SSM
+modules/llm  llm.tf               # LLM service: KMS, private S3, SQS/SNS, Lambda roles, alarms (MDI-213)
 bootstrap/                        # state bucket + GitHub OIDC provider + CI roles
 scripts/plan.sh  scripts/deploy.sh
 .github/workflows/terraform.yml
@@ -234,6 +237,31 @@ Do not copy `modules/rds`, GitLab `terraform.tfstate.d/`, or `environments/.dev.
 | Region | `us-west-1` |
 | TF CI role | `talvio-gha-terraform-dev` |
 | Service deploy role | `talvio-gha-deploy-dev` → SSM `/dev/ci/deploy-role-arn` |
+| LLM service deploy role | `talvio-gha-llm-deploy-dev` → SSM `/dev/ci/llm-deploy-role-arn` |
+
+## LLM service resources (MDI-213)
+
+`llm.tf` and `modules/llm` provision what `talvio-llm-service` needs, behind `enable_llm`. Terraform owns every stateful or shared resource; the service reads them by SSM path and owns only functions, routes, the authorizer, event source mappings and schedule events. There is no Supabase database access and no link to the public media CDN.
+
+| Resource | Name (`<env>` = stage) | SSM |
+| --- | --- | --- |
+| DynamoDB tables (`pk`/`sk`, `GSI1`, TTL `expiresAt`; PITR + deletion protection on prod) | `talvio-llm-{jobs,sessions,quotas,outbox}-<env>` | `/<env>/dynamodb/llm-{jobs,sessions,quotas,outbox}` |
+| Private S3 (KMS, versioned, TLS only, no CORS, no CloudFront) | `talvio-llm-{quarantine,artifacts}-<env>` | `/<env>/s3/llm-{quarantine,artifacts}` |
+| Work queue + DLQ per pipeline release (visibility = 6 × worker timeout, 3 receives) | `talvio-llm-work-<release>[-dlq]-<env>` | `/<env>/llm/work-queue-{url,arn}-<release>`, `work-dlq-arn-<release>` |
+| Textract completion SNS → SQS + DLQ, Textract publish role | `talvio-llm-ocr-completion-<env>`, `talvio-llm-ocr[-dlq]-<env>` | `/<env>/llm/ocr-*`, `textract-role-arn` |
+| Lambda roles (api, authorizer, worker, scheduler) | `talvio-llm-<role>-<env>` | `/<env>/llm/<role>-role-arn` |
+| KMS key, alarm topic | `alias/talvio-llm-<env>`, `talvio-llm-alarms-<env>` | `/<env>/llm/kms-key-arn`, `alarm-topic-arn` |
+| Dispatcher / reconciler cadence | | `/<env>/llm/{dispatcher,reconciler}-schedule` |
+| Bedrock config (region, permitted regions, profile) | | `/<env>/llm/bedrock-*` |
+| API Gateway usage plan + key | `talvio-llm-plan`, `llm-service-api-key` | `/<env>/gw/llm/*` |
+
+Retention matches the table TTLs: `quarantine/pending/` 24 h, `quarantine/raw/` and `derivatives/` 7 days, `artifacts/results/` 7 days, `artifacts/metadata/` 30 days. Incomplete multipart uploads abort after 1 day. Data ages out; there is no account-deletion path.
+
+Roles: the API role can read and write the tables, mint upload grants under `pending/`, enqueue, and call `bedrock:CountTokens`; it has an explicit deny on `bedrock:InvokeModel*`, `ApplyGuardrail` and `textract:*`. The worker role reaches only these tables, these buckets' prefixes, these queues, the listed Bedrock models and inference profiles, Textract and `iam:PassRole` for the Textract role. The scheduler role adds DLQ access and bucket sweeps. Bedrock access is granted for the US geographic profile and the foundation-model ARN in each of `llm_bedrock_permitted_regions`; the application region (`region`) is a separate setting. Global profiles are rejected.
+
+Not here yet: Bedrock guardrail resources (with the adapter, MDI-217), and application-metric alarms (accounting overrun, stuck leases, failure rate, cost, exposure), which need the metrics the later tickets emit under namespace `Talvio/LLM`.
+
+Verify in the target account before the first service deploy: `scripts/verify-llm-platform.sh`.
 
 ## SES templates (MDI-189 contract)
 
