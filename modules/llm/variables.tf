@@ -139,3 +139,14 @@ variable "tags" {
   type    = map(string)
   default = {}
 }
+
+variable "upload_allowed_origins" {
+  type        = list(string)
+  description = "Browser origins allowed to PUT to a presigned upload URL (CORS on the quarantine bucket). Empty means no CORS."
+  default     = []
+
+  validation {
+    condition     = alltrue([for o in var.upload_allowed_origins : can(regex("^https?://[^/]+$", o))])
+    error_message = "Origins are scheme://host[:port] with no path."
+  }
+}
