@@ -21,7 +21,6 @@ locals {
     for p in var.bedrock_inference_profile_ids :
     "arn:${local.partition}:bedrock:${var.region}:${local.account_id}:inference-profile/${p}"
   ]
-  bedrock_guardrail_arn = "arn:${local.partition}:bedrock:${var.region}:${local.account_id}:guardrail/*"
 
   role_names = {
     api        = "${local.prefix}-api-${local.suffix}"
@@ -226,7 +225,7 @@ data "aws_iam_policy_document" "worker" {
     sid       = "Guardrail"
     effect    = "Allow"
     actions   = ["bedrock:ApplyGuardrail"]
-    resources = [local.bedrock_guardrail_arn]
+    resources = [aws_bedrock_guardrail.input.guardrail_arn]
   }
 
   # Textract has no resource-level permissions for these actions.
