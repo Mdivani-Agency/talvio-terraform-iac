@@ -117,7 +117,7 @@ data "aws_iam_policy_document" "api" {
   statement {
     sid       = "Tables"
     effect    = "Allow"
-    actions   = ["dynamodb:GetItem", "dynamodb:BatchGetItem", "dynamodb:Query", "dynamodb:PutItem", "dynamodb:UpdateItem", "dynamodb:ConditionCheckItem"]
+    actions   = ["dynamodb:GetItem", "dynamodb:BatchGetItem", "dynamodb:Query", "dynamodb:PutItem", "dynamodb:UpdateItem", "dynamodb:DeleteItem", "dynamodb:ConditionCheckItem"]
     resources = concat(local.table_arns, local.table_index_arns)
   }
 
