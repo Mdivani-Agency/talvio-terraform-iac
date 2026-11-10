@@ -20,7 +20,9 @@ data "aws_iam_openid_connect_provider" "github" {
 }
 
 locals {
-  llm_account_id = one(data.aws_caller_identity.llm_deploy[*].account_id)
+  # Empty when LLM is disabled: the data source then has no instance and a null
+  # would break the string interpolation in the policy below at plan time.
+  llm_account_id = try(data.aws_caller_identity.llm_deploy[0].account_id, "")
 
   llm_subs = [
     for prefix in [
