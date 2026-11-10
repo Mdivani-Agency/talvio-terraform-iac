@@ -48,8 +48,6 @@ terraform apply -var='environment=dev'   # dedicated dev account → talvio-iac-
 # terraform apply -var='environment=prod'  # → talvio-iac-prod-state + OIDC
 ```
 
-`llm_deploy_role_arn` is the role for `talvio-llm-service`; trust is limited to that repo's GitHub Environment for the stage (`environment:dev` / `environment:prod`) and also written to SSM `/${env}/ci/llm-deploy-role-arn`.
-
 Copy `terraform_role_arn` into GitHub (see [CI](#github-actions-and-oidc)). `deploy_role_arn` is also written to SSM `/${env}/ci/deploy-role-arn` for the service repos.
 
 ### Option B — AWS CLI
@@ -237,7 +235,7 @@ Do not copy `modules/rds`, GitLab `terraform.tfstate.d/`, or `environments/.dev.
 | Region | `us-west-1` |
 | TF CI role | `talvio-gha-terraform-dev` |
 | Service deploy role | `talvio-gha-deploy-dev` → SSM `/dev/ci/deploy-role-arn` |
-| LLM service deploy role | `talvio-gha-llm-deploy-dev` → SSM `/dev/ci/llm-deploy-role-arn` |
+| LLM service deploy role (main root, `llm_deploy.tf`) | `talvio-gha-llm-deploy-dev` → SSM `/dev/ci/llm-deploy-role-arn` |
 
 ## LLM service resources (MDI-213)
 
@@ -260,6 +258,8 @@ Retention matches the table TTLs: `quarantine/pending/` 24 h, `quarantine/raw/` 
 Roles: the API role can read and write the tables, mint upload grants under `pending/`, enqueue, and call `bedrock:CountTokens`; it has an explicit deny on `bedrock:InvokeModel*`, `ApplyGuardrail` and `textract:*`. The worker role reaches only these tables, these buckets' prefixes, these queues, the listed Bedrock models and inference profiles, Textract and `iam:PassRole` for the Textract role. The scheduler role adds DLQ access and bucket sweeps. Bedrock access is granted for the US geographic profile and the foundation-model ARN in each of `llm_bedrock_permitted_regions`; the application region (`region`) is a separate setting. Global profiles are rejected.
 
 Not here yet: Bedrock guardrail resources (with the adapter, MDI-217), and application-metric alarms (accounting overrun, stuck leases, failure rate, cost, exposure), which need the metrics the later tickets emit under namespace `Talvio/LLM`.
+
+The deploy role for `talvio-llm-service` (`llm_deploy.tf`) is created by CI with the rest of the platform, not by `bootstrap/`. It trusts only that repo's GitHub Environment for the stage (`environment:dev` / `environment:prod`). After the apply, set the `llm_deploy_role_arn` output as `AWS_DEPLOY_ROLE_ARN` on that Environment.
 
 Verify in the target account before the first service deploy: `scripts/verify-llm-platform.sh`.
 

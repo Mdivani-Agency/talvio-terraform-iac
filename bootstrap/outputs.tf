@@ -33,13 +33,3 @@ output "deploy_role_ssm_parameter" {
   description = "SSM path consumed by service GitHub Actions (MDI-185 / MDI-186)."
   value       = module.service_deploy.ssm_parameter_name
 }
-
-output "llm_deploy_role_arn" {
-  description = "Role for talvio-llm-service sls deploy. Set as AWS_DEPLOY_ROLE_ARN on the repo's dev/prod GitHub Environment."
-  value       = module.llm_deploy.role_arn
-}
-
-output "llm_deploy_role_ssm_parameter" {
-  description = "SSM path holding the talvio-llm-service deploy role ARN."
-  value       = module.llm_deploy.ssm_parameter_name
-}

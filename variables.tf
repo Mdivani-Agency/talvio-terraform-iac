@@ -290,3 +290,26 @@ variable "llm_reconciler_schedule" {
   type    = string
   default = "rate(5 minutes)"
 }
+
+variable "github_org" {
+  type        = string
+  description = "GitHub org allowed to assume the llm-service deploy role."
+  default     = "Mdivani-Agency"
+}
+
+variable "github_org_id" {
+  type        = string
+  description = "Numeric GitHub org id for immutable OIDC sub claims (same value as bootstrap/variables.tf)."
+  default     = "328309464"
+}
+
+variable "llm_repo" {
+  type    = string
+  default = "talvio-llm-service"
+}
+
+variable "llm_repo_id" {
+  type        = string
+  description = "Numeric GitHub repo id of talvio-llm-service (immutable OIDC sub)."
+  default     = "1367138093"
+}
