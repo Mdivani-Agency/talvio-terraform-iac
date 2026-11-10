@@ -80,8 +80,21 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "this" {
   }
 }
 
-# No CORS: browsers never talk to these buckets. Uploads go through the
-# service API and its presigned URLs are added deliberately in MDI-216.
+# CORS only on the quarantine bucket, and only for the presigned PUT of an upload (MDI-216).
+# The API signs content-type, content-length and x-amz-checksum-sha256, so the browser must send
+# exactly those. Browsers never read either bucket, and the artifacts bucket has no CORS.
+resource "aws_s3_bucket_cors_configuration" "quarantine" {
+  count  = length(var.upload_allowed_origins) > 0 ? 1 : 0
+  bucket = aws_s3_bucket.this["quarantine"].id
+
+  cors_rule {
+    allowed_methods = ["PUT"]
+    allowed_origins = var.upload_allowed_origins
+    allowed_headers = ["content-type", "content-length", "x-amz-checksum-sha256", "x-amz-sdk-checksum-algorithm"]
+    expose_headers  = ["x-amz-version-id"]
+    max_age_seconds = 600
+  }
+}
 
 resource "aws_s3_bucket_lifecycle_configuration" "this" {
   for_each = local.buckets

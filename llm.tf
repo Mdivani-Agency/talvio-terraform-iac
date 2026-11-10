@@ -54,6 +54,7 @@ module "llm" {
   bedrock_default_inference_profile_id = var.llm_bedrock_default_inference_profile_id
   deletion_protection                  = var.environment == "prod"
   alarm_email_addresses                = var.llm_alarm_email_addresses
+  upload_allowed_origins               = var.llm_upload_allowed_origins
   dispatcher_schedule                  = var.llm_dispatcher_schedule
   reconciler_schedule                  = var.llm_reconciler_schedule
 

@@ -225,6 +225,14 @@ allowed_origins = [
   "http://localhost:3002",
 ]
 
+# Browsers PUT LLM document uploads straight to the private quarantine bucket (presigned).
+# Same hosts as the Supabase redirect list; no wildcard beyond the project's preview prefix.
+llm_upload_allowed_origins = [
+  "https://dev.talvio.co",
+  "https://web-app-bay-two-*.vercel.app",
+  "http://localhost:3002",
+]
+
 ses_from_email           = "no-reply@dev.talvio.co"
 ses_domain               = "dev.talvio.co"
 ses_email_from_subdomain = "mail.dev.talvio.co"

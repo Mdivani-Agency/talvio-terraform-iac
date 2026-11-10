@@ -313,3 +313,9 @@ variable "llm_repo_id" {
   description = "Numeric GitHub repo id of talvio-llm-service (immutable OIDC sub)."
   default     = "1367138093"
 }
+
+variable "llm_upload_allowed_origins" {
+  type        = list(string)
+  description = "Browser origins that may PUT a presigned LLM document upload (CORS on the private quarantine bucket)."
+  default     = []
+}
