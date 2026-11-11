@@ -71,6 +71,8 @@ output "ssm_parameters" {
       "bedrock-region"               = { value = var.region, description = "Application and Bedrock source region" }
       "bedrock-permitted-regions"    = { value = join(",", var.bedrock_permitted_regions), description = "Regions the US inference profile may execute in" }
       "bedrock-inference-profile-id" = { value = var.bedrock_default_inference_profile_id, description = "Production inference profile" }
+      "guardrail-id"                 = { value = aws_bedrock_guardrail.input.guardrail_id, description = "Input guardrail id (prompt-attack filter)" }
+      "guardrail-version"            = { value = aws_bedrock_guardrail_version.input.version, description = "Pinned input guardrail version" }
     },
     { for r, q in aws_sqs_queue.work : "work-queue-url-${r}" => { value = q.id, description = "Work queue URL, release ${r}" } },
     { for r, q in aws_sqs_queue.work : "work-queue-arn-${r}" => { value = q.arn, description = "Work queue ARN, release ${r}" } },
