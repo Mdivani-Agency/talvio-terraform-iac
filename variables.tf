@@ -188,6 +188,12 @@ variable "vercel_env_targets" {
   default     = ["development", "preview"]
 }
 
+variable "web_llm_service_enabled" {
+  type        = bool
+  description = "Sets the web's NEXT_PUBLIC_FLAG_LLM_SERVICE (MDI-221). Needs enable_llm. Prod stays off until the rollout (MDI-224). Inlined at build time, so redeploy the web after changing it."
+  default     = false
+}
+
 variable "supabase_organization_id" {
   type        = string
   description = "Supabase organization slug (Dashboard → Organization Settings)."

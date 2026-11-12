@@ -14,6 +14,9 @@ vercel_team_id    = "team_S6W5rfdIEWc9DQQCvutXxrB1"
 vercel_git_branch = "development"
 vercel_apex_ipv4  = "76.76.21.21"
 
+# Web uses the LLM service on dev and previews (MDI-221). Prod stays off until MDI-224.
+web_llm_service_enabled = true
+
 # New hosted project. Org slug from Dashboard → Organization Settings.
 supabase_organization_id = "divvnevstsvkehuoclwp"
 supabase_project_name    = "talvio-dev"
