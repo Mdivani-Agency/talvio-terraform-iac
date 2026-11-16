@@ -62,12 +62,15 @@ resource "aws_cloudwatch_dashboard" "this" {
           width  = 12
           height = 6
           properties = {
-            title   = "Spend over 24 hours (micro-USD; alarm at ${floor(var.account_daily_ceiling_micro_usd * var.spend_alarm_fraction)}, ceiling ${var.account_daily_ceiling_micro_usd})"
-            region  = var.region
-            view    = "singleValue"
-            period  = 86400
-            stat    = "Sum"
-            metrics = [[local.app_namespace, "JobCostMicroUsd", "Stage", var.environment, { label = "Spent (24 h)" }]]
+            title  = "Spend over 24 hours (micro-USD; alarm at ${floor(var.account_daily_ceiling_micro_usd * var.spend_alarm_fraction)}, ceiling ${var.account_daily_ceiling_micro_usd})"
+            region = var.region
+            view   = "singleValue"
+            # Always the last 24 hours, whatever range the dashboard shows.
+            start                = "-PT24H"
+            setPeriodToTimeRange = true
+            period               = 86400
+            stat                 = "Sum"
+            metrics              = [[local.app_namespace, "JobCostMicroUsd", "Stage", var.environment, { label = "Spent (24 h)" }]]
           }
         },
         {
