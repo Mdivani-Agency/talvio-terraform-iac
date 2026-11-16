@@ -150,3 +150,32 @@ variable "upload_allowed_origins" {
     error_message = "Origins are scheme://host[:port] with no path."
   }
 }
+
+variable "account_daily_ceiling_micro_usd" {
+  type        = number
+  description = "The service's account-wide spend ceiling per UTC day (ACCOUNT_DAILY_CEILING_MICRO_USD). Keep in step with the service; the spend alarm fires at spend_alarm_fraction of it."
+  default     = 5000000
+}
+
+variable "spend_alarm_fraction" {
+  type        = number
+  description = "Fraction of the daily ceiling at which metered spend over the last 24 hours alarms (design §11: 70%)."
+  default     = 0.7
+
+  validation {
+    condition     = var.spend_alarm_fraction > 0 && var.spend_alarm_fraction <= 1
+    error_message = "spend_alarm_fraction is in (0, 1]."
+  }
+}
+
+variable "job_failure_rate_alarm" {
+  type        = number
+  description = "Alarm when this fraction of finished jobs failed over 15 minutes (with at least 5 finished)."
+  default     = 0.2
+}
+
+variable "job_cost_p95_alarm_micro_usd" {
+  type        = number
+  description = "Alarm when the p95 cost per job over an hour is above this (design §14 target: USD 0.04)."
+  default     = 40000
+}

@@ -249,6 +249,7 @@ Do not copy `modules/rds`, GitLab `terraform.tfstate.d/`, or `environments/.dev.
 | Textract completion SNS → SQS + DLQ, Textract publish role | `talvio-llm-ocr-completion-<env>`, `talvio-llm-ocr[-dlq]-<env>` | `/<env>/llm/ocr-*`, `textract-role-arn` |
 | Lambda roles (api, authorizer, worker, scheduler) | `talvio-llm-<role>-<env>` | `/<env>/llm/<role>-role-arn` |
 | KMS key, alarm topic | `alias/talvio-llm-<env>`, `talvio-llm-alarms-<env>` | `/<env>/llm/kms-key-arn`, `alarm-topic-arn` |
+| Operations dashboard and application alarms (MDI-223) | `talvio-llm-<env>`; `talvio-llm-{spend-70pct,ceiling-reached,stuck-jobs,reconcile-failed,result-invalid,job-failure-rate,job-cost-p95}-<env>` | |
 | Dispatcher / reconciler cadence | | `/<env>/llm/{dispatcher,reconciler}-schedule` |
 | Bedrock config (region, permitted regions, profile) | | `/<env>/llm/bedrock-*` |
 | API Gateway usage plan + key | `talvio-llm-plan`, `llm-service-api-key` | `/<env>/gw/llm/*` |
@@ -257,7 +258,17 @@ Retention matches the table TTLs: `quarantine/pending/` 24 h, `quarantine/raw/` 
 
 Roles: the API role can read and write the tables, mint upload grants under `pending/`, enqueue, and call `bedrock:CountTokens`; it has an explicit deny on `bedrock:InvokeModel*`, `ApplyGuardrail` and `textract:*`. The worker role reaches only these tables, these buckets' prefixes, these queues, the listed Bedrock models and inference profiles, Textract and `iam:PassRole` for the Textract role. The scheduler role adds DLQ access and bucket sweeps. Bedrock access is granted for the US geographic profile and the foundation-model ARN in each of `llm_bedrock_permitted_regions`; the application region (`region`) is a separate setting. Global profiles are rejected.
 
-Not here yet: Bedrock guardrail resources (with the adapter, MDI-217), and application-metric alarms (accounting overrun, stuck leases, failure rate, cost, exposure), which need the metrics the later tickets emit under namespace `Talvio/LLM`.
+Application alarms (`modules/llm/metrics.tf`) and the dashboard (`dashboard.tf`) read the metrics the service writes under namespace `Talvio/LLM` with a `Stage` dimension equal to `environment`. They cover:
+
+- spend over a rolling 24 hours at 70% of the account's daily ceiling (`account_daily_ceiling_micro_usd`, which must match the service's `ACCOUNT_DAILY_CEILING_MICRO_USD`, USD 5 by default);
+- admissions refused at the ceiling;
+- jobs expired at their deadline;
+- reconciler failures;
+- results that failed their contract check;
+- a failed share of finished jobs above 20%;
+- p95 cost per job above USD 0.04.
+
+All of them notify the alarm topic. What to do for each is in the service's `docs/runbook.md`.
 
 The deploy role for `talvio-llm-service` (`llm_deploy.tf`) is created by CI with the rest of the platform, not by `bootstrap/`. It trusts only that repo's GitHub Environment for the stage (`environment:dev` / `environment:prod`). After the apply, set the `llm_deploy_role_arn` output as `AWS_DEPLOY_ROLE_ARN` on that Environment.
 

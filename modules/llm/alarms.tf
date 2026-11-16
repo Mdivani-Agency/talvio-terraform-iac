@@ -1,7 +1,5 @@
-# Queue-level alarms only. Accounting overrun, stuck leases, failure rate,
-# p95 cost and account exposure need the application's own metrics
-# (namespace Talvio/LLM, which the roles may write) and are added alongside
-# the code that emits them (MDI-214/215/224).
+# Queue-level alarms and the alarm topic. Alarms on the service's own
+# metrics (spend, stuck jobs, failure rate, cost) are in metrics.tf.
 
 resource "aws_sns_topic" "alarms" {
   name              = "${local.prefix}-alarms-${local.suffix}"
