@@ -26,6 +26,13 @@ locals {
     "arn:${local.partition}:dynamodb:${var.region}:${local.account_id}:table/${var.table_names[k]}"
   ]
   table_index_arns = [for arn in local.table_arns : "${arn}/index/*"]
+
+  # Claude API key (MDI-638). An SSM SecureString the owner creates and fills
+  # in by hand, encrypted with this module's key. Terraform only grants the
+  # worker read access and never creates or reads it, so the key is never in
+  # Terraform state or plans.
+  anthropic_key_parameter_name = "/${var.environment}/llm/anthropic-api-key"
+  anthropic_key_parameter_arn  = "arn:${local.partition}:ssm:${var.region}:${local.account_id}:parameter${local.anthropic_key_parameter_name}"
 }
 
 # One key for queues, topics, buckets and (via the table definition) any
