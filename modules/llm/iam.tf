@@ -156,6 +156,14 @@ data "aws_iam_policy_document" "api" {
     actions   = ["bedrock:InvokeModel*", "bedrock:ApplyGuardrail", "textract:*"]
     resources = ["*"]
   }
+
+  # Nor the Claude API key that model calls use (MDI-638).
+  statement {
+    sid       = "NoClaudeApiKey"
+    effect    = "Deny"
+    actions   = ["ssm:GetParameter*"]
+    resources = [local.anthropic_key_parameter_arn]
+  }
 }
 
 resource "aws_iam_role_policy" "api" {
@@ -226,6 +234,31 @@ data "aws_iam_policy_document" "worker" {
     effect    = "Allow"
     actions   = ["bedrock:ApplyGuardrail"]
     resources = [aws_bedrock_guardrail.input.guardrail_arn]
+  }
+
+  # Claude API key (MDI-638): read and decrypt this one parameter, nothing else.
+  statement {
+    sid       = "ClaudeApiKey"
+    effect    = "Allow"
+    actions   = ["ssm:GetParameter"]
+    resources = [local.anthropic_key_parameter_arn]
+  }
+
+  statement {
+    sid       = "ClaudeApiKeyDecrypt"
+    effect    = "Allow"
+    actions   = ["kms:Decrypt"]
+    resources = [aws_kms_key.this.arn]
+    condition {
+      test     = "StringEquals"
+      variable = "kms:ViaService"
+      values   = ["ssm.${var.region}.amazonaws.com"]
+    }
+    condition {
+      test     = "StringEquals"
+      variable = "kms:EncryptionContext:PARAMETER_ARN"
+      values   = [local.anthropic_key_parameter_arn]
+    }
   }
 
   # Textract has no resource-level permissions for these actions.
