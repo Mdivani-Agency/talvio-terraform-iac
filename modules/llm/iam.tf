@@ -2,7 +2,7 @@
 # `role: <arn from SSM>`; it creates no roles of its own for this service.
 #   api         HTTP handler: tables, upload grants, enqueue, token counting. No model calls.
 #   authorizer  token verification only: logs.
-#   worker      queue consumers: tables, own buckets, Bedrock, Textract.
+#   worker      queue consumers (work queues, their DLQs, OCR): tables, own buckets, Bedrock, Textract.
 #   scheduler   dispatcher + reconciler: tables, queues incl. DLQs, bucket sweeps.
 
 locals {
@@ -209,10 +209,12 @@ data "aws_iam_policy_document" "worker" {
   }
 
   statement {
-    sid       = "ConsumeAndRetry"
-    effect    = "Allow"
+    sid    = "ConsumeAndRetry"
+    effect = "Allow"
+    # The work DLQs too: llm-service's dlq function runs as this role and consumes them to
+    # abandon dead-lettered jobs, and Lambda checks ReceiveMessage when it creates that mapping.
     actions   = ["sqs:ReceiveMessage", "sqs:DeleteMessage", "sqs:GetQueueAttributes", "sqs:ChangeMessageVisibility"]
-    resources = concat(local.work_queue_arns, [aws_sqs_queue.ocr.arn])
+    resources = concat(local.work_queue_arns, local.work_dlq_arns, [aws_sqs_queue.ocr.arn])
   }
 
   statement {
