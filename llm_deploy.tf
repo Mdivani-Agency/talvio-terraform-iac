@@ -69,6 +69,14 @@ locals {
         Resource = "*"
       },
       {
+        # CloudFormation tags each mapping with the stack's tags as it creates it. Mapping ARNs end
+        # in a random id, so they cannot be scoped to this service by name.
+        Sid      = "EventSourceMappingTags"
+        Effect   = "Allow"
+        Action   = ["lambda:TagResource", "lambda:UntagResource", "lambda:ListTags"]
+        Resource = "arn:aws:lambda:${var.region}:${local.llm_account_id}:event-source-mapping:*"
+      },
+      {
         Sid      = "Api"
         Effect   = "Allow"
         Action   = ["apigateway:*"]
