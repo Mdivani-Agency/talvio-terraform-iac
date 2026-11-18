@@ -214,6 +214,7 @@ variables/templates/{magic_link,recovery,invite,email_change,welcome}.html
 modules/ssl  modules/api_gateway  modules/s3  modules/dynamodb  modules/ses  modules/ssm
 modules/dns  modules/acm          # new (zone + us-west-1 cert; ssl stays us-east-1)
 modules/ci_oidc                   # GitHub OIDC IAM role + optional SSM
+modules/llm  llm.tf               # LLM service: KMS, private S3, SQS/SNS, Lambda roles, alarms (MDI-213)
 bootstrap/                        # state bucket + GitHub OIDC provider + CI roles
 scripts/plan.sh  scripts/deploy.sh
 .github/workflows/terraform.yml
@@ -234,6 +235,54 @@ Do not copy `modules/rds`, GitLab `terraform.tfstate.d/`, or `environments/.dev.
 | Region | `us-west-1` |
 | TF CI role | `talvio-gha-terraform-dev` |
 | Service deploy role | `talvio-gha-deploy-dev` → SSM `/dev/ci/deploy-role-arn` |
+| LLM service deploy role (main root, `llm_deploy.tf`) | `talvio-gha-llm-deploy-dev` → SSM `/dev/ci/llm-deploy-role-arn` |
+
+## LLM service resources (MDI-213)
+
+`llm.tf` and `modules/llm` provision what `talvio-llm-service` needs, behind `enable_llm`. Terraform owns every stateful or shared resource; the service reads them by SSM path and owns only functions, routes, the authorizer, event source mappings and schedule events. There is no Supabase database access and no link to the public media CDN.
+
+| Resource | Name (`<env>` = stage) | SSM |
+| --- | --- | --- |
+| DynamoDB tables (`pk`/`sk`, `GSI1`, TTL `expiresAt`; PITR + deletion protection on prod) | `talvio-llm-{jobs,sessions,quotas,outbox}-<env>` | `/<env>/dynamodb/llm-{jobs,sessions,quotas,outbox}` |
+| Private S3 (KMS, versioned, TLS only, no CORS, no CloudFront) | `talvio-llm-{quarantine,artifacts}-<env>` | `/<env>/s3/llm-{quarantine,artifacts}` |
+| Work queue + DLQ per pipeline release (visibility = 6 × worker timeout, 3 receives) | `talvio-llm-work-<release>[-dlq]-<env>` | `/<env>/llm/work-queue-{url,arn}-<release>`, `work-dlq-arn-<release>` |
+| Textract completion SNS → SQS + DLQ, Textract publish role | `talvio-llm-ocr-completion-<env>`, `talvio-llm-ocr[-dlq]-<env>` | `/<env>/llm/ocr-*`, `textract-role-arn` |
+| Lambda roles (api, authorizer, worker, scheduler) | `talvio-llm-<role>-<env>` | `/<env>/llm/<role>-role-arn` |
+| KMS key, alarm topic | `alias/talvio-llm-<env>`, `talvio-llm-alarms-<env>` | `/<env>/llm/kms-key-arn`, `alarm-topic-arn` |
+| Operations dashboard and application alarms (MDI-223) | `talvio-llm-<env>`; `talvio-llm-{spend-70pct,ceiling-reached,stuck-jobs,reconcile-failed,result-invalid,job-failure-rate,job-cost-p95}-<env>` | |
+| Dispatcher / reconciler cadence | | `/<env>/llm/{dispatcher,reconciler}-schedule` |
+| Bedrock config (region, permitted regions, profile) | | `/<env>/llm/bedrock-*` |
+| Claude API key (MDI-638): SecureString under the LLM KMS key, **created and filled in by the owner, not by Terraform** | | `/<env>/llm/anthropic-api-key` |
+| API Gateway usage plan + key | `talvio-llm-plan`, `llm-service-api-key` | `/<env>/gw/llm/*` |
+
+Retention matches the table TTLs: `quarantine/pending/` 24 h, `quarantine/raw/` and `derivatives/` 7 days, `artifacts/results/` 7 days, `artifacts/metadata/` 30 days. Incomplete multipart uploads abort after 1 day. Data ages out; there is no account-deletion path.
+
+Roles: the API role can read and write the tables, mint upload grants under `pending/`, enqueue, and call `bedrock:CountTokens`; it has an explicit deny on `bedrock:InvokeModel*`, `ApplyGuardrail` and `textract:*`. The worker role reaches only these tables, these buckets' prefixes, these queues, the listed Bedrock models and inference profiles, Textract and `iam:PassRole` for the Textract role. The worker role can also read and decrypt the Claude API key parameter, and only that parameter; the API role is explicitly denied it. The scheduler role adds DLQ access and bucket sweeps. Bedrock access is granted for the US geographic profile and the foundation-model ARN in each of `llm_bedrock_permitted_regions`; the application region (`region`) is a separate setting. Global profiles are rejected.
+
+Application alarms (`modules/llm/metrics.tf`) and the dashboard (`dashboard.tf`) read the metrics the service writes under namespace `Talvio/LLM` with a `Stage` dimension equal to `environment`. They cover:
+
+- spend over a rolling 24 hours at 70% of the account's daily ceiling (`account_daily_ceiling_micro_usd`, which must match the service's `ACCOUNT_DAILY_CEILING_MICRO_USD`, USD 5 by default);
+- admissions refused at the ceiling;
+- jobs expired at their deadline;
+- reconciler failures;
+- results that failed their contract check;
+- a failed share of finished jobs above 20%;
+- p95 cost per job above USD 0.04.
+
+All of them notify the alarm topic. What to do for each is in the service's `docs/runbook.md`.
+
+The deploy role for `talvio-llm-service` (`llm_deploy.tf`) is created by CI with the rest of the platform, not by `bootstrap/`. It trusts only that repo's GitHub Environment for the stage (`environment:dev` / `environment:prod`). After the apply, set the `llm_deploy_role_arn` output as `AWS_DEPLOY_ROLE_ARN` on that Environment.
+
+Verify in the target account before the first service deploy: `scripts/verify-llm-platform.sh`.
+
+**Claude API key.** Model calls go to the Claude API (MDI-638). Terraform grants the worker role access to `/<env>/llm/anthropic-api-key` but never creates or reads the parameter, so the key never appears in state or a plan. The owner creates it once per environment, in the Systems Manager console (Parameter Store, type SecureString, KMS key `alias/talvio-llm-<env>`) or from a shell that does not keep history:
+
+```bash
+read -rs KEY && aws ssm put-parameter --name /dev/llm/anthropic-api-key \
+  --type SecureString --key-id alias/talvio-llm-dev --value "$KEY" --overwrite && unset KEY
+```
+
+Until it exists, model jobs retry and then expire, and the workers log `secret_unavailable`.
 
 ## SES templates (MDI-189 contract)
 
@@ -256,6 +305,7 @@ No SES SMTP IAM user (D5). Auth hook secret is generated here (`random_bytes.ema
 | Supabase project | `talvio-dev`, org slug `vxmuczxicfctjtbdfall`, region `us-west-1` |
 | Auth mail | HTTPS hook `https://api.dev.talvio.co/email/hooks/send-email` (no `smtp_*`) |
 | Auth providers | email OTP + Google (client id/secret from SSM `/dev/auth/google/...`). LinkedIn is disabled. |
+| Auth tokens | `jwt_exp = 900`; custom access-token hook `pg-functions://postgres/public/custom_access_token_hook` adds `account_status` and `plan` for the LLM service ([MDI-440](https://linear.app/mdivani/issue/MDI-440)). Apply talvio-web-app migration `20261013000100_access_token_hook.sql` before this, or Auth cannot issue tokens. |
 | Vercel domain | `dev.talvio.co` on git branch `development` |
 | Apex DNS | A `76.76.21.21` (Vercel anycast; zone apex cannot be a CNAME) |
 | Frontend env | `NEXT_PUBLIC_*`, `SUPABASE_SECRET_KEY`, `MEDIA_SERVICE_API_KEY` (generic GW key). Not set: `OPENAI_API_KEY`, `GOOGLE_FONTS_API_KEY` |

@@ -64,3 +64,8 @@ output "vercel_project_id" {
   description = "Existing Vercel project (not managed as vercel_project)."
   value       = var.enable_app_platform ? var.vercel_project_id : null
 }
+
+output "llm_deploy_role_arn" {
+  description = "Role for talvio-llm-service sls deploy. Set as AWS_DEPLOY_ROLE_ARN on the repo's GitHub Environment for this stage (also SSM /$${env}/ci/llm-deploy-role-arn)."
+  value       = one(module.llm_deploy[*].role_arn)
+}

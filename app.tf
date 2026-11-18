@@ -31,6 +31,9 @@ locals {
   vercel_secret_env = var.enable_app_platform ? {
     SUPABASE_SECRET_KEY   = local.supabase_secret_key
     MEDIA_SERVICE_API_KEY = data.aws_ssm_parameter.generic_api_key[0].value
+    # Server-only base of the LLM service (its `llm` base path on the shared api domain). Every AI
+    # feature of the web goes through its /api/llm adapter to it (MDI-221, MDI-224).
+    LLM_SERVICE_URL = "https://api.${var.root_domain}/llm"
   } : {}
 
   vercel_all_env = merge(local.vercel_public_env, local.vercel_secret_env)
@@ -154,6 +157,14 @@ resource "supabase_settings" "this" {
     external_google_client_id      = data.aws_ssm_parameter.google_client_id[0].value
     external_google_secret         = data.aws_ssm_parameter.google_client_secret[0].value
     external_linkedin_oidc_enabled = false
+
+    # Adds account_status and plan claims for the LLM service authorizer (MDI-440). The function
+    # comes from talvio-web-app migration 20261013000100, which must be applied first.
+    hook_custom_access_token_enabled = true
+    hook_custom_access_token_uri     = "pg-functions://postgres/public/custom_access_token_hook"
+
+    # 15-minute access tokens, so a suspension or plan change reaches the LLM service quickly.
+    jwt_exp = 900
   })
 }
 
