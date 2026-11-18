@@ -26,14 +26,13 @@ locals {
     NEXT_PUBLIC_API_BASE_URL             = "https://api.${var.root_domain}"
     NEXT_PUBLIC_SUPABASE_URL             = local.supabase_url
     NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY = local.supabase_publishable_key
-    NEXT_PUBLIC_FLAG_LLM_SERVICE         = tostring(var.enable_llm && var.web_llm_service_enabled)
   } : {}
 
   vercel_secret_env = var.enable_app_platform ? {
     SUPABASE_SECRET_KEY   = local.supabase_secret_key
     MEDIA_SERVICE_API_KEY = data.aws_ssm_parameter.generic_api_key[0].value
-    # Server-only base of the LLM service (its `llm` base path on the shared api domain). The web's
-    # /api/llm adapter calls it only while NEXT_PUBLIC_FLAG_LLM_SERVICE is true (MDI-221).
+    # Server-only base of the LLM service (its `llm` base path on the shared api domain). Every AI
+    # feature of the web goes through its /api/llm adapter to it (MDI-221, MDI-224).
     LLM_SERVICE_URL = "https://api.${var.root_domain}/llm"
   } : {}
 
