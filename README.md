@@ -207,7 +207,7 @@ permissions:
 ## Layout
 
 ```
-versions.tf  backend.tf  providers.tf  main.tf  app.tf  variables.tf  outputs.tf
+versions.tf  backend.tf  providers.tf  main.tf  app.tf  api_domain.tf  variables.tf  outputs.tf
 environments/dev.backend.hcl  environments/prod.backend.hcl
 variables/dev.tfvars  variables/prod.tfvars
 variables/templates/{magic_link,recovery,invite,email_change,welcome}.html
@@ -227,7 +227,7 @@ Do not copy `modules/rds`, GitLab `terraform.tfstate.d/`, or `environments/.dev.
 | Thing | Value |
 | --- | --- |
 | Hosted zone | `dev.talvio.co` |
-| API | `api.dev.talvio.co` |
+| API | `api.dev.talvio.co` (API Gateway domain owned by `api_domain.tf`; services add base path mappings only) |
 | Media CDN | `media.dev.talvio.co` |
 | Media bucket | `talvio-media-dev` |
 | SES from | `no-reply@dev.talvio.co` |
